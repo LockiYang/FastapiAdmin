@@ -11,15 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema
 from app.core.exceptions import CustomException
-from app.modules.task.storage.core.base import (
+from app.modules.storage.core.base import (
     _OBJECT_STORE_PROTOCOLS,
     BaseStorageAdapter,
     StorageAdapterConfig,
     StorageObject,
     StoragePage,
 )
-from app.modules.task.storage.core.factory import StorageAdapterFactory
-from app.modules.task.storage.node.service import StorageNodeService
+from app.modules.storage.core.factory import StorageAdapterFactory
+from app.modules.storage.node.service import StorageNodeService
 from app.utils.upload_util import UploadUtil
 
 from .schema import StoragePathCreateSchema, StoragePathResultSchema, StorageUploadResultSchema

@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import inspect as sa_inspect
 
 from app.config.path_conf import BASE_DIR
+from app.config.setting import settings
 from app.core.logger import logger
 
 
@@ -158,7 +159,8 @@ class ImportUtil:
                 raise
 
         # 查找apscheduler_jobs表的模型（如果存在）
-        cls._find_apscheduler_model(base_class, models, seen_models, seen_tables)
+        if settings.module_enabled("task"):
+            cls._find_apscheduler_model(base_class, models, seen_models, seen_tables)
 
         return models
 
@@ -187,10 +189,7 @@ class ImportUtil:
         # 尝试从apscheduler相关模块导入
         try:
             # 检查是否有自定义的apscheduler模型
-            for module_name in [
-                "app.core.ap_scheduler",
-                "app.modules.task.scheduler_test",
-            ]:
+            for module_name in ["app.core.ap_scheduler"]:
                 try:
                     module = importlib.import_module(module_name)
                     for _name, obj in inspect.getmembers(module, inspect.isclass):

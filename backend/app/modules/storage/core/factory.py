@@ -1,12 +1,12 @@
 from app.core.exceptions import CustomException
-from app.modules.task.storage.core.base import BaseStorageAdapter, StorageAdapterConfig, StorageProtocol
-from app.modules.task.storage.core.cos_adapter import CosStorageAdapter
-from app.modules.task.storage.core.ftp_ftps_adapter import FtpStorageAdapter
-from app.modules.task.storage.core.local_adapter import LocalStorageAdapter
-from app.modules.task.storage.core.obs_adapter import ObsStorageAdapter
-from app.modules.task.storage.core.oss_adapter import OssStorageAdapter
-from app.modules.task.storage.core.s3_adapter import S3StorageAdapter
-from app.modules.task.storage.core.sftp_adapter import SftpStorageAdapter
+from app.modules.storage.core.base import BaseStorageAdapter, StorageAdapterConfig, StorageProtocol
+from app.modules.storage.core.cos_adapter import CosStorageAdapter
+from app.modules.storage.core.ftp_ftps_adapter import FtpStorageAdapter
+from app.modules.storage.core.local_adapter import LocalStorageAdapter
+from app.modules.storage.core.obs_adapter import ObsStorageAdapter
+from app.modules.storage.core.oss_adapter import OssStorageAdapter
+from app.modules.storage.core.s3_adapter import S3StorageAdapter
+from app.modules.storage.core.sftp_adapter import SftpStorageAdapter
 
 # 协议 → 适配器类映射（FTPS 复用 FTP 适配器，由配置区分显式/隐式 TLS）
 _STORAGE_ADAPTERS: dict[str, type[BaseStorageAdapter]] = {

@@ -13,7 +13,7 @@ import paramiko
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.modules.task.storage.core.base import BaseStorageAdapter, SftpAdvancedConfig, StorageObject, StorageProtocol
+from app.modules.storage.core.base import BaseStorageAdapter, SftpAdvancedConfig, StorageObject, StorageProtocol
 
 
 class SftpStorageAdapter(BaseStorageAdapter):

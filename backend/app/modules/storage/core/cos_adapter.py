@@ -4,7 +4,7 @@ from qcloud_cos import CosConfig, CosS3Client
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.modules.task.storage.core.base import (
+from app.modules.storage.core.base import (
     BaseStorageAdapter,
     CosAdvancedConfig,
     StorageObject,

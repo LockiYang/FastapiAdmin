@@ -94,11 +94,15 @@ class Permission:
             return None
 
     async def _load_user_data_scopes(self) -> set[int]:
-        """读取当前用户角色的数据权限范围集合（data_scope 值）。"""
+        """仅读取当前用户未删除且启用角色的数据权限范围。"""
         from app.modules.system.role.model import RoleModel  # 延迟导入：core 导入期不依赖业务层（守卫不变式 3）
         from app.modules.system.user.model import UserModel
 
-        stmt = select(RoleModel.data_scope).join(RoleModel.users).where(UserModel.id == self.auth.user.id)
+        stmt = select(RoleModel.data_scope).join(RoleModel.users).where(
+            UserModel.id == self.auth.user.id,
+            RoleModel.is_deleted.is_(False),
+            RoleModel.status == 0,
+        )
         rows = (await self.db.execute(stmt)).scalars().all()
         return {int(scope) for scope in rows}
 

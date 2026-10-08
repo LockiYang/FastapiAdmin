@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.modules.task.storage.core.base import BaseStorageAdapter, FtpAdvancedConfig, StorageObject, StorageProtocol
+from app.modules.storage.core.base import BaseStorageAdapter, FtpAdvancedConfig, StorageObject, StorageProtocol
 
 
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):

@@ -24,7 +24,7 @@ from app.core.ap_scheduler import SchedulerUtil
 from app.core.exceptions import CustomException, handle_exception, resolve_http_status
 from app.core.logger import logger
 from app.core.middlewares import CustomCORSMiddleware
-from app.modules.task.cronjob.node.service import _add_job_with_trigger
+from app.modules.task.node.service import _add_job_with_trigger
 
 # ── 1. 业务异常按自身状态码返回（默认 4xx） ──────────────────────────────────
 

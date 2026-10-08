@@ -102,7 +102,7 @@ class SchedulerUtil:
     # 由注册表解析后**直接调用**，不经过 exec —— 因此不受 SCHEDULER_ALLOW_CODE_EXEC 限制。
     # 这样该开关只关闭"执行用户提交代码块"的能力，而不是整个调度特性。
     BUILTIN_PREFIX = "builtin:"
-    BUILTIN_HANDLERS_MODULE = "app.modules.task.cronjob.node.handlers"
+    BUILTIN_HANDLERS_MODULE = "app.modules.task.node.handlers"
     # 名称白名单：仅允许「模块名」或「模块名.函数名」，禁止点号穿越 / 括号 / 特殊字符
     _BUILTIN_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)?$")
     _builtin_handlers: dict[str, Callable[..., Any]] = {}
@@ -229,8 +229,8 @@ class SchedulerUtil:
         from sqlalchemy import false, select
 
         from app.core.database import async_db_session
-        from app.modules.task.cronjob.node.model import NodeModel
-        from app.modules.task.cronjob.node.service import register_node_job
+        from app.modules.task.node.model import NodeModel
+        from app.modules.task.node.service import register_node_job
 
         try:
             async with async_db_session() as session:
@@ -378,7 +378,7 @@ class SchedulerUtil:
     @staticmethod
     def _record_job_log(record: dict[str, Any]) -> None:
         """任务执行结果落库（成功/失败均可写；APScheduler 事件线程同步执行，独立短连接）。"""
-        from app.modules.task.cronjob.job.model import JobModel  # 延迟导入：core 导入期不依赖业务层（守卫不变式 3）
+        from app.modules.task.job.model import JobModel  # 延迟导入：core 导入期不依赖业务层（守卫不变式 3）
 
         with Session(engine) as session:
             job_log = JobModel(**record)

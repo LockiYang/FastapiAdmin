@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
-from app.modules.task.storage.node.service import StorageNodeService
-from app.modules.task.storage.transfer.engine import _broadcast, execute_transfer_task
-from app.modules.task.storage.transfer.registry import transfer_task_registry
+from app.modules.storage.node.service import StorageNodeService
+from app.modules.storage.transfer.engine import _broadcast, execute_transfer_task
+from app.modules.storage.transfer.registry import transfer_task_registry
 from app.utils.common_util import search_to_dict
 
 from .crud import StorageTransferTaskCRUD

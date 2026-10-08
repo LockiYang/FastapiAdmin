@@ -18,11 +18,10 @@ from app.modules.system.params.model import ParamsModel
 from app.modules.system.role.model import RoleModel
 from app.modules.system.user.model import UserModel, UserRolesModel
 from app.modules.system.versions.model import VersionModel
-from app.modules.task.cronjob.node.model import NodeModel
-from app.modules.task.storage.node.model import StorageNodeModel
 from app.utils.import_util import ImportUtil
 
-# 导入全部模型：与 alembic env.py 保持一致，确保全局 MapperRegistry 的 FK 引用可完整解析
+# 保留全部模型元数据，避免停用模块时 Alembic 误认为其已有表需要删除。
+# 可选模块的路由、运行时服务和种子数据仍受 ENABLED_MODULES 控制。
 ImportUtil.find_models(MappedBase)
 
 
@@ -40,8 +39,6 @@ class InitializeData:
         UserModel,
         UserRolesModel,
         VersionModel,
-        NodeModel,
-        StorageNodeModel,
     ]
 
     # 树形模型：JSON 含嵌套 children，需递归创建对象
@@ -163,7 +160,16 @@ class InitializeData:
     async def __init_data(self, db: AsyncSession) -> None:
         """按依赖顺序初始化各表种子数据（表已有数据则整体跳过，实现幂等）"""
         skipped: list[str] = []
-        for model in self.prepare_init_models:
+        optional_models = []
+        if settings.module_enabled("task"):
+            from app.modules.task.node.model import NodeModel
+
+            optional_models.append(NodeModel)
+        if "storage" in settings.ENABLED_MODULES:
+            from app.modules.storage.node.model import StorageNodeModel
+
+            optional_models.append(StorageNodeModel)
+        for model in [*self.prepare_init_models, *optional_models]:
             table_name = model.__tablename__
 
             data = self.__load_json(table_name)

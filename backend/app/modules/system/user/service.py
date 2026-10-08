@@ -137,7 +137,8 @@ class UserService:
 
         update_data = data.model_dump(exclude_unset=True, exclude_none=True, exclude={"role_ids", "position_ids"})
         await UserCRUD(self.auth, self.db).update(id=id, data=update_data)
-        await self._set_user_roles(user_ids=[id], role_ids=data.role_ids or [])
+        if "role_ids" in data.model_fields_set and data.role_ids is not None:
+            await self._set_user_roles(user_ids=[id], role_ids=data.role_ids)
         await self._set_user_positions(user_ids=[id], position_ids=data.position_ids or [])
 
         return await self.detail(id=id)
@@ -179,10 +180,8 @@ class UserService:
 
     async def _set_user_roles(self, user_ids: list[int], role_ids: list[int]) -> None:
         """替换用户角色关联：service 校验角色存在性与启用状态，CRUD 仅负责持久化。"""
-        if not role_ids:
-            return
         users = await self._load_users(user_ids, preload=["roles"])
-        roles = await RoleCRUD(self.auth, self.db).get_list(search={"id": ("in", role_ids)})
+        roles = [] if not role_ids else await RoleCRUD(self.auth, self.db).get_list(search={"id": ("in", role_ids)})
         missing = set(role_ids) - {r.id for r in roles}
         if missing:
             raise CustomException(msg=f"角色不存在: {sorted(missing)}")
@@ -234,18 +233,44 @@ class UserService:
                 search={"type": ("in", [1, 2, 3, 4]), "status": 0, **_pc_only},
                 order_by=[{"order": "asc"}],
             )
-            return [MenuOutSchema.model_validate(menu) for menu in menu_all]
+            menus = [MenuOutSchema.model_validate(menu) for menu in menu_all]
         else:
             menu_ids = set(self.auth.menu_ids)
             if not menu_ids:
                 return []
-            return [
+            menus = [
                 MenuOutSchema.model_validate(menu)
                 for menu in await MenuCRUD(self.auth, self.db).get_list(
                     search={"id": ("in", list(menu_ids)), **_pc_only},
                     order_by=[{"order": "asc"}],
                 )
             ]
+        disabled_branches = {
+            "Generator": "generator",
+            "AI": "ai",
+            "Cronjob": "task",
+            "Storage": "storage",
+        }
+        excluded_ids = {
+            menu.id
+            for menu in menus
+            if menu.route_name in disabled_branches and not settings.module_enabled(disabled_branches[menu.route_name])
+        }
+        if not settings.module_enabled("task") and not settings.module_enabled("storage"):
+            excluded_ids.update(menu.id for menu in menus if menu.route_name == "Task")
+        # 菜单保留在数据库中；只从当前用户导航树里裁掉停用模块及其子菜单。
+        while True:
+            descendants = {menu.id for menu in menus if menu.parent_id in excluded_ids}
+            if descendants <= excluded_ids:
+                break
+            excluded_ids.update(descendants)
+        visible = [menu for menu in menus if menu.id not in excluded_ids]
+        if not settings.module_enabled("task") and settings.module_enabled("storage"):
+            visible = [
+                menu.model_copy(update={"redirect": "/task/storage/flow"}) if menu.route_name == "Task" else menu
+                for menu in visible
+            ]
+        return visible
 
     async def update_current_info(self, data: CurrentUserUpdateSchema) -> UserOutSchema:
         user_id = self.auth.user.id

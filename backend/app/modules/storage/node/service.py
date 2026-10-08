@@ -5,14 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
-from app.modules.task.storage.core.base import (
+from app.modules.storage.core.base import (
     DEFAULT_PORTS,
     StorageAdapterConfig,
     StorageProtocol,
     decrypt_password,
     encrypt_password,
 )
-from app.modules.task.storage.core.factory import StorageAdapterFactory
+from app.modules.storage.core.factory import StorageAdapterFactory
 from app.utils.common_util import search_to_dict
 
 from .crud import StorageNodeCRUD

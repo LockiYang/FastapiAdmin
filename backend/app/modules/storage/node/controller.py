@@ -8,7 +8,7 @@ from app.common.response import ResponseSchema, SuccessResponse
 from app.core.base_schema import AuthSchema, PageResultSchema, PaginationQueryParam
 from app.core.dependencies import AuthPermission, db_getter
 from app.core.router_class import OperationLogRoute
-from app.modules.task.storage.core.base import (
+from app.modules.storage.core.base import (
     ADVANCED_FIELD_DEFS,
     DEFAULT_PORTS,
     AdvancedFieldDefSchema,

@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # ******************* 项目环境 ****************** #
     # ================================================= #
     ENVIRONMENT: EnvironmentEnum = EnvironmentEnum.DEV
+    # 可选业务模块；调整后需重启服务。存储与定时任务可分别启用。
+    ENABLED_MODULES: list[str] = ["generator", "task", "storage"]
+
+    def module_enabled(self, name: str) -> bool:
+        """判断可选业务模块是否启用。"""
+        return name in self.ENABLED_MODULES
 
     # ================================================= #
     # ******************* 服务器配置 ****************** #

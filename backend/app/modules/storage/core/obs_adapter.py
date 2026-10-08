@@ -5,7 +5,7 @@ from obs import ObsClient
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.modules.task.storage.core.base import (
+from app.modules.storage.core.base import (
     BaseStorageAdapter,
     ObsAdvancedConfig,
     StorageObject,

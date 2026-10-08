@@ -19,11 +19,11 @@ from app.config.setting import settings
 from app.core.ap_scheduler import SchedulerUtil
 from app.core.base_schema import AuthSchema
 from app.core.exceptions import CustomException
-from app.modules.task.cronjob.job.schema import SchedulerJobSchema, SchedulerStatusSchema
-from app.modules.task.cronjob.job.service import JobService
-from app.modules.task.cronjob.node import service as node_service
-from app.modules.task.cronjob.node.schema import NodeOutSchema
-from app.modules.task.cronjob.node.service import _add_job_with_trigger
+from app.modules.task.job.schema import SchedulerJobSchema, SchedulerStatusSchema
+from app.modules.task.job.service import JobService
+from app.modules.task.node import service as node_service
+from app.modules.task.node.schema import NodeOutSchema
+from app.modules.task.node.service import _add_job_with_trigger
 
 # ── 工具 ──────────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.modules.task.storage.core.base import BaseStorageAdapter, StorageObject, StorageProtocol
+from app.modules.storage.core.base import BaseStorageAdapter, StorageObject, StorageProtocol
 
 
 class LocalStorageAdapter(BaseStorageAdapter):

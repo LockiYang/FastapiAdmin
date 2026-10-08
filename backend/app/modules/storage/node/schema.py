@@ -3,7 +3,7 @@ import codecs
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.base_schema import BaseQueryParam, BaseSchema, UserByQueryParam, UserBySchema
-from app.modules.task.storage.core.base import DEFAULT_PORTS, StorageProtocol
+from app.modules.storage.core.base import DEFAULT_PORTS, StorageProtocol
 
 
 class StorageNodeConfigSchema(BaseModel):

@@ -128,29 +128,31 @@ FastapiAdmin/            # Monorepo full-stack project
 | 📝 Logs | Operation audit |
 | 🧰 Dev Tools | API Docs |
 
-### Extension Modules (enabled by default, trim via `ENABLED_MODULES`)
+### Extension Modules (trim via `ENABLED_MODULES`)
 
 | Module | Capabilities | Toggle |
 |--------|-------------|--------|
-| 🧩 Task Management | Scheduled tasks + visual workflow orchestration (built-in business nodes) | `task` |
+| 🧩 Scheduled Tasks | Scheduled tasks and task nodes | `task` |
 | 🔧 Code Generator | Table → full frontend/backend code | `generator` |
-| 📁 Storage | Unified file / object storage (SFTP / S3 / OSS / COS / OBS) | `storage` |
+| 📁 Storage | Storage sources, file browsing, transfer tasks and workflows (SFTP / S3 / OSS / COS / OBS) | `storage` |
 | 🤖 AI Chat | Agno-powered agent conversations | `ai` |
-| 💬 Internal Chat | Text-only private / group chat between users (WebSocket real-time push + unread badge) | `chat` |
+| 💬 Internal Chat (planned) | Text-only private / group chat between users (WebSocket real-time push + unread badge) | `chat` (toggle not wired up yet) |
 
 ## 🔧 Module Toggling
 
-Extension modules can be enabled/disabled on demand via `ENABLED_MODULES` in `backend/app/config/setting.py` — **just remove an item from the list; no code or menu deletion needed**. The corresponding REST endpoints, WebSocket endpoints and initialization logic will not be loaded automatically:
+Implemented extension modules can be enabled or disabled via `ENABLED_MODULES` in `backend/app/config/setting.py`. The defaults are `generator`, `task`, and `storage`; add `ai` to enable AI chat. Disabled modules do not register routes, initialize runtime services, or appear in navigation. Existing database tables and menu records are retained. `chat` is planned; adding it to the list does not enable internal chat yet:
 
 ```python
-# e.g. Disable internal chat and AI assistant, keep the rest
+# Default configuration; task and storage can be removed independently
 ENABLED_MODULES = ["generator", "task", "storage"]
 ```
 
 ## 🚦 Deployment Notes
 
-- **Chat scope**: Internal chat is positioned as **lightweight internal communication** — text-only messages. **No file transfer, recall, read receipts, or multi-device sync (IM features)**. For strong IM needs, integrate mature products such as WeCom / DingTalk / Feishu. It can be disabled anytime by removing `chat` from `ENABLED_MODULES`.
-- **Single-instance deployment**: Real-time features (internal chat WebSocket, scheduled task scheduler) rely on in-memory connections and local scheduling within a single instance — please deploy as a **single instance**. For horizontal scaling, integrate Redis Pub/Sub or a message queue yourself.
+- **Internal chat scope**: Planned as text-only private and group messaging. The current `fastlink/fachat` page uses local mock messages and has no matching server-side messaging API.
+- **Storage compatibility path**: Storage backend code lives in `app/modules/storage`, while existing API paths remain under `/task/storage/*` so current clients and menus keep working.
+- **Scheduled-task API**: Scheduled-task backend code lives in `app/modules/task`, while existing API paths remain under `/task/cronjob/*`.
+- **Multi-instance deployment**: Scheduled tasks use local execution and shared state; verify scheduler locking, execution, and status synchronization before running multiple instances.
 - **Key security**: Configure all third-party keys (AI, cloud storage, etc.) in the `backend/env/.env.*` environment variables. **Never commit them to the repository or store them in the database**.
 - **Database migrations**: Manage schema changes with Alembic migrations in production (`uv run alembic upgrade head`); `create_all` is only a fallback for first-time initialization.
 

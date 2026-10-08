@@ -9,7 +9,7 @@ from app.common.response import ResponseSchema, SuccessResponse, UploadFileRespo
 from app.core.base_schema import AuthSchema
 from app.core.dependencies import AuthPermission, db_getter
 from app.core.router_class import OperationLogRoute
-from app.modules.task.storage.core.base import StorageObject, StoragePage
+from app.modules.storage.core.base import StorageObject, StoragePage
 
 from .schema import StoragePathCreateSchema, StoragePathResultSchema, StorageUploadResultSchema
 from .service import StorageFileService

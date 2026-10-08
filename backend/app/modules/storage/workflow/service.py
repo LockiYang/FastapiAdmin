@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
-from app.modules.task.storage.node.crud import StorageNodeCRUD
-from app.modules.task.storage.node.model import StorageNodeModel
-from app.modules.task.storage.node.service import StorageNodeService
-from app.modules.task.storage.transfer.schema import TransferMode, TransferTargetSchema, TransferTaskCreateSchema
-from app.modules.task.storage.transfer.service import StorageTransferService
+from app.modules.storage.node.crud import StorageNodeCRUD
+from app.modules.storage.node.model import StorageNodeModel
+from app.modules.storage.node.service import StorageNodeService
+from app.modules.storage.transfer.schema import TransferMode, TransferTargetSchema, TransferTaskCreateSchema
+from app.modules.storage.transfer.service import StorageTransferService
 from app.utils.common_util import search_to_dict
 
 from .crud import WorkflowCRUD, WorkflowEdgeCRUD, WorkflowNodeCRUD

@@ -151,6 +151,11 @@ class RoleService:
         if len(roles) != len(ids):
             raise CustomException(msg="删除失败，部分ID不存在")
 
+        assigned_roles = await RoleCRUD(self.auth, self.db).get_roles_with_users(role_ids=ids)
+        if assigned_roles:
+            names = "、".join(role.name for role in assigned_roles)
+            raise CustomException(msg=f"删除失败，角色仍关联有效用户，请先解除用户关联：{names}")
+
         await RoleCRUD(self.auth, self.db).delete(ids=ids)
 
     async def set_permission(self, data: RolePermissionSettingSchema) -> None:

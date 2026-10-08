@@ -19,12 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_db_session
 from app.core.logger import logger
-from app.modules.task.storage.core.base import StorageAdapterConfig
-from app.modules.task.storage.core.factory import StorageAdapterFactory
-from app.modules.task.storage.node.model import StorageNodeModel
-from app.modules.task.storage.node.service import StorageNodeService
-from app.modules.task.storage.transfer.registry import transfer_task_registry
-from app.modules.task.storage.transfer.sse_manager import transfer_stream_manager
+from app.modules.storage.core.base import StorageAdapterConfig
+from app.modules.storage.core.factory import StorageAdapterFactory
+from app.modules.storage.node.model import StorageNodeModel
+from app.modules.storage.node.service import StorageNodeService
+from app.modules.storage.transfer.registry import transfer_task_registry
+from app.modules.storage.transfer.sse_manager import transfer_stream_manager
 
 from .model import StorageTransferStepModel, StorageTransferTaskModel
 from .schema import TransferMode, TransferStepOutSchema, TransferTaskOutSchema

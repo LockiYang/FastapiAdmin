@@ -15,15 +15,15 @@ from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.router_class import OperationLogRoute
 from app.core.sse_manager import SSE_QUEUE_MAX_SIZE
-from app.modules.task.storage.transfer.schema import (
+from app.modules.storage.transfer.schema import (
     TransferTaskCreateResultSchema,
     TransferTaskCreateSchema,
     TransferTaskOutSchema,
     TransferTaskQueryParam,
     TransferTaskType,
 )
-from app.modules.task.storage.transfer.service import StorageTransferService
-from app.modules.task.storage.transfer.sse_manager import transfer_stream_manager
+from app.modules.storage.transfer.service import StorageTransferService
+from app.modules.storage.transfer.sse_manager import transfer_stream_manager
 
 StorageTransferRouter = APIRouter(route_class=OperationLogRoute, prefix="/storage/transfer", tags=["文件传输"])
 

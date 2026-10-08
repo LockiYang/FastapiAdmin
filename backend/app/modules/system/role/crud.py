@@ -1,10 +1,12 @@
 from collections.abc import Sequence
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_crud import CRUDBase
 from app.core.base_schema import AuthSchema
+from app.modules.system.user.model import UserModel
 
 from .model import RoleModel
 from .schema import RoleCreateSchema, RoleUpdateSchema
@@ -15,6 +17,14 @@ class RoleCRUD(CRUDBase[RoleModel, RoleCreateSchema, RoleUpdateSchema]):
 
     def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
         super().__init__(model=RoleModel, auth=auth, db=db)
+
+    async def get_roles_with_users(self, role_ids: list[int]) -> Sequence[RoleModel]:
+        """查找仍关联未删除用户的角色（停用用户仍保留授权）。"""
+        stmt = select(RoleModel).where(
+            RoleModel.id.in_(role_ids),
+            RoleModel.users.any(UserModel.is_deleted.is_(False)),
+        )
+        return (await self.db.execute(stmt)).scalars().all()
 
     async def set_role_menus_crud(self, role_objs: Sequence[RoleModel], menu_objs: Sequence[Any]) -> None:
         """替换角色的菜单关联（纯数据操作；存在性校验与编排由 Service 完成）

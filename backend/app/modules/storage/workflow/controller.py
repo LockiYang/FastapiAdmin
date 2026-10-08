@@ -8,8 +8,8 @@ from app.common.response import ResponseSchema, SuccessResponse
 from app.core.base_schema import AuthSchema, PageResultSchema, PaginationQueryParam
 from app.core.dependencies import AuthPermission, db_getter
 from app.core.router_class import OperationLogRoute
-from app.modules.task.storage.workflow.schema import WorkflowCreateSchema, WorkflowExecuteSchema, WorkflowOutSchema, WorkflowQueryParam, WorkflowUpdateSchema
-from app.modules.task.storage.workflow.service import WorkflowService
+from app.modules.storage.workflow.schema import WorkflowCreateSchema, WorkflowExecuteSchema, WorkflowOutSchema, WorkflowQueryParam, WorkflowUpdateSchema
+from app.modules.storage.workflow.service import WorkflowService
 
 StorageWorkflowRouter = APIRouter(route_class=OperationLogRoute, prefix="/storage/workflow", tags=["传输流程"])
 
