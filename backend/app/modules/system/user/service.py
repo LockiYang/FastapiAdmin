@@ -256,21 +256,13 @@ class UserService:
             for menu in menus
             if menu.route_name in disabled_branches and not settings.module_enabled(disabled_branches[menu.route_name])
         }
-        if not settings.module_enabled("task") and not settings.module_enabled("storage"):
-            excluded_ids.update(menu.id for menu in menus if menu.route_name == "Task")
         # 菜单保留在数据库中；只从当前用户导航树里裁掉停用模块及其子菜单。
         while True:
             descendants = {menu.id for menu in menus if menu.parent_id in excluded_ids}
             if descendants <= excluded_ids:
                 break
             excluded_ids.update(descendants)
-        visible = [menu for menu in menus if menu.id not in excluded_ids]
-        if not settings.module_enabled("task") and settings.module_enabled("storage"):
-            visible = [
-                menu.model_copy(update={"redirect": "/task/storage/flow"}) if menu.route_name == "Task" else menu
-                for menu in visible
-            ]
-        return visible
+        return [menu for menu in menus if menu.id not in excluded_ids]
 
     async def update_current_info(self, data: CurrentUserUpdateSchema) -> UserOutSchema:
         user_id = self.auth.user.id

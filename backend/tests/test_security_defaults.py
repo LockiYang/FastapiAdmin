@@ -1,6 +1,6 @@
 """安全默认值与异常状态码回归测试。
 
-覆盖 backend/audit-security.md 的 S9/S10 与 backend/audit-backend.md 的 H1/H5 同类根因：
+覆盖 dsh/backend/audit-security.md 的 S9/S10 与 dsh/backend/audit-backend.md 的 H1/H5 同类根因：
 - 业务异常一律只传 code（HTTP 状态由映射表推导）：参数/验证码 400、权限 403、不存在 404；
 - 意外异常不在业务代码里包装（t19）：原始异常冒泡，由全局处理器给 5xx + 通用文案 + 日志；
 - 定时任务代码块执行默认关闭，关闭时给出明确失败原因（而非静默执行/静默跳过）；

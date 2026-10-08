@@ -1,6 +1,6 @@
 """代码生成器模板安全（注入面）回归测试。
 
-背景：``backend/audit-backend.md`` B1 —— 代码生成模板以 ``autoescape=False`` 渲染，并把
+背景：``dsh/backend/audit-backend.md`` B1 —— 代码生成模板以 ``autoescape=False`` 渲染，并把
 ``function_name`` / ``column_comment`` / ``column_name`` 原样写进 ``.py``，产物落在
 ``backend/app/plugin/**`` 且在应用启动时被 ``app/core/discover.py`` import，等价于「有代码生成
 权限 = 服务器任意代码执行」。

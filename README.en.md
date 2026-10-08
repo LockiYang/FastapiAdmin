@@ -140,18 +140,17 @@ FastapiAdmin/            # Monorepo full-stack project
 
 ## 🔧 Module Toggling
 
-Implemented extension modules can be enabled or disabled via `ENABLED_MODULES` in `backend/app/config/setting.py`. The defaults are `generator`, `task`, and `storage`; add `ai` to enable AI chat. Disabled modules do not register routes, initialize runtime services, or appear in navigation. Existing database tables and menu records are retained. `chat` is planned; adding it to the list does not enable internal chat yet:
+Implemented extension modules can be enabled or disabled via `ENABLED_MODULES` in `backend/app/config/setting.py`. The defaults are `generator`, `task`, `storage`, and `ai`. Disabled modules do not register routes, initialize runtime services, or appear in navigation. Existing database tables and menu records are retained. `chat` is planned; adding it to the list does not enable internal chat yet:
 
 ```python
 # Default configuration; task and storage can be removed independently
-ENABLED_MODULES = ["generator", "task", "storage"]
+ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 ```
 
 ## 🚦 Deployment Notes
 
 - **Internal chat scope**: Planned as text-only private and group messaging. The current `fastlink/fachat` page uses local mock messages and has no matching server-side messaging API.
-- **Storage compatibility path**: Storage backend code lives in `app/modules/storage`, while existing API paths remain under `/task/storage/*` so current clients and menus keep working.
-- **Scheduled-task API**: Scheduled-task backend code lives in `app/modules/task`, while existing API paths remain under `/task/cronjob/*`.
+- **Page and API paths**: Sidebar pages live under `/task/*` and `/storage/*`; backend APIs use `/task/cronjob/*` and `/task/storage/*`.
 - **Multi-instance deployment**: Scheduled tasks use local execution and shared state; verify scheduler locking, execution, and status synchronization before running multiple instances.
 - **Key security**: Configure all third-party keys (AI, cloud storage, etc.) in the `backend/env/.env.*` environment variables. **Never commit them to the repository or store them in the database**.
 - **Database migrations**: Manage schema changes with Alembic migrations in production (`uv run alembic upgrade head`); `create_all` is only a fallback for first-time initialization.

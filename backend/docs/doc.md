@@ -1,5 +1,7 @@
 # 根目录与 Backend 的 AI 文档，以及它们如何配合 AI Coding
 
+> DSH 协作手册与历史审计报告现统一归档在根目录 `dsh/`。下文第 1–4 节保留原审计时的组织说明；当前文件位置以第 5.2 节链接为准。
+
 第 1–4 节覆盖仓库**根目录**和 **`backend/`** 里、会被 AI Coding（单会话编码、子任务委派、多智能体团队）读取或产出的文档。第 5 节为 **2026-10-08 全仓库多智能体协作文件盘点**，补充前端、部署、隐藏目录和业务代码，区分直接协作规则、团队交付物、通用 AI 技能与业务 Agent/Team。
 
 这些文档分成四类角色：
@@ -7,15 +9,15 @@
 | 角色 | 文档 | 在 AI Coding 里做什么 |
 | --- | --- | --- |
 | 操作手册 | 根 `SKILL.md` | 开工前对齐目录、命令、分层约定和已踩过的坑 |
-| 组队纪律 | 根 `TEAM-PLAYBOOK.md` | 决定单会话还是组队，以及审计波 / 交付波怎么分工、怎么验收 |
+| 组队纪律 | `dsh/TEAM-PLAYBOOK.md` | 决定单会话还是组队，以及审计波 / 交付波怎么分工、怎么验收 |
 | 规格与知识 | 根 `REQUIREMENTS.md`；`backend/docs/prd.md`、`arch.md`、`fastapi.md`、`basics.md`；`backend/README.md` | 告诉模型「要做什么」和「代码该长什么样」 |
-| 证据与约束 | 根 `AUDIT-REPORT.md`、`DEPLOYMENT.md`、`README.md`、`CONTRIBUTING.md`、`CHANGELOG.md`；`backend/audit-*.md` | 记录已核实的问题、不可逆动作和对外说明，避免下一轮编码把旧结论当事实或擅自上线 |
+| 证据与约束 | `dsh/AUDIT-REPORT.md`、`DEPLOYMENT.md`、`README.md`、`CONTRIBUTING.md`、`CHANGELOG.md`；`dsh/backend/audit-*.md` | 记录已核实的问题、不可逆动作和对外说明，避免下一轮编码把旧结论当事实或擅自上线 |
 
 人读的总览和 AI 读的操作手册是分开的。`README.md` 面向克隆后五分钟跑起来；`SKILL.md` 面向写代码前的约定。两者可以同时被模型读到，但改业务代码时以 `SKILL.md` 和 `backend/docs/` 为准。
 
 ---
 
-## 1. 根目录
+## 1. 根目录文档与现已归档到 `dsh/` 的文档
 
 ### 1.1 `SKILL.md` — 全栈开发技能
 
@@ -31,11 +33,11 @@
 
 单会话 AI Coding 的默认路径是：先按这份技能对齐，再改代码，再跑技能里写的验证命令。
 
-### 1.2 `TEAM-PLAYBOOK.md` — 多智能体协作纪律
+### 1.2 `dsh/TEAM-PLAYBOOK.md` — 多智能体协作纪律
 
 本文件只写**本仓库和本机团队插件没有自动提供**的部分。通用策略（显式委派才建团队、共享工作目录、任务范围协调等）由运行时注入，这里不重复。
 
-按 `TEAM-PLAYBOOK.md` 的历史记录，DeepSeek DSH 团队栈使用第三方插件 `@nanmicoder/dsh-agent-teams`（工具族 `agent_teams_*`，斜杠命令 `/agent-teams`）。状态约定落在工作区 `.agent-teams/`（已 gitignore）。该手册记录官方实验包于 2026-10-05 从当时的本机 profile 移除，避免「工具用一套、面板看另一套」。这些是手册记载的环境信息，不代表当前 Codex 会话已安装该插件；本次检查也未发现根目录 `.agent-teams/`。
+按 `dsh/TEAM-PLAYBOOK.md` 的历史记录，DeepSeek DSH 团队栈使用第三方插件 `@nanmicoder/dsh-agent-teams`（工具族 `agent_teams_*`，斜杠命令 `/agent-teams`）。状态约定落在工作区 `.agent-teams/`（已 gitignore）。该手册记录官方实验包于 2026-10-05 从当时的本机 profile 移除，避免「工具用一套、面板看另一套」。这些是手册记载的环境信息，不代表当前 Codex 会话已安装该插件；本次检查也未发现根目录 `.agent-teams/`。
 
 开工第一步是看当前会话实际有哪些委派工具，再选档位：
 
@@ -68,13 +70,13 @@ Playbook 第 7 节的审计波模板直接对应下面这些报告文件名，�
 
 标题是「SaaS 多租户平台需求文档」，版本 v3.6.0（2026-06-03），约 3100 行。内容覆盖租户隔离、套餐、平台/租户/用户三层权限，以及 Tenant、Package、Plugin、工单、AI Chat、代码生成等模块的目标行为。
 
-`SKILL.md` 把它列为做大功能前要读的需求。审计波里的产品角色以它为基线，对照三端代码，产出 `backend/audit-requirements.md`。
+`SKILL.md` 把它列为做大功能前要读的需求。审计波里的产品角色以它为基线，对照三端代码，产出 `dsh/backend/audit-requirements.md`。
 
-它描述的是目标产品，不是当前仓库的行为。`backend/audit-requirements.md` 与根 `AUDIT-REPORT.md` 已核实：三端代码里没有 `tenant` 实现，该文件来自一次纯文档提交。AI Coding 若把它当成「现在已经这样工作」，会按不存在的租户模型改代码。当前已实现的后端行为以 `backend/docs/prd.md` 为准；`REQUIREMENTS.md` 只作为差距和未来范围。
+它描述的是目标产品，不是当前仓库的行为。`dsh/backend/audit-requirements.md` 与 `dsh/AUDIT-REPORT.md` 已核实：三端代码里没有 `tenant` 实现，该文件来自一次纯文档提交。AI Coding 若把它当成「现在已经这样工作」，会按不存在的租户模型改代码。当前已实现的后端行为以 `backend/docs/prd.md` 为准；`REQUIREMENTS.md` 只作为差距和未来范围。
 
-### 1.4 `AUDIT-REPORT.md` — 审计波的队长总报告
+### 1.4 `dsh/AUDIT-REPORT.md` — 审计波的队长总报告
 
-2026-10-04 由 7 名审计成员并行审查后，由队长汇总并做线上复核。它把各分报告收成一份可执行结论：blocker / high 问题、需求与实现的错位、本轮已修项、仍须人工决定的项，并指回 `TEAM-PLAYBOOK.md`。
+2026-10-04 由 7 名审计成员并行审查后，由队长汇总并做线上复核。它把各分报告收成一份可执行结论：blocker / high 问题、需求与实现的错位、本轮已修项、仍须人工决定的项，并指回 `dsh/TEAM-PLAYBOOK.md`。
 
 对后续 AI Coding，它是「已知事实清单」：下一轮实现或复核应先看这里和对应分报告，避免重复发现，也避免把已经轮换过的密钥、已经改过的部署面再当成当前缺陷。
 
@@ -89,7 +91,7 @@ Playbook 第 7 节的审计波模板直接对应下面这些报告文件名，�
 
 ---
 
-## 2. `backend/`
+## 2. `backend/` 文档与现已归档的审计报告
 
 ### 2.1 `docs/prd.md` — 与代码对齐的后端产品需求
 
@@ -123,18 +125,18 @@ AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 �
 
 声明项目总览、演示账号和 Docker 以根 `README.md` 为准；本文档只管 `backend/` 的目录、模块分层、`uv sync`、`main.py run/revision/upgrade` 和 ruff。日期序列化约定（`DateTimeStr`、`model_dump(mode='json')`）也在这里，生成或手写 Schema 时要遵守。
 
-### 2.6 `audit-*.md` — 审计波分报告
+### 2.6 `dsh/backend/audit-*.md` — 审计波分报告
 
-这些文件是团队审计的产物，格式统一为只读、带命令退出码、结论落到 `文件:行号`。
+这些文件现存放于 `dsh/backend/`，是团队审计的产物，格式统一为只读、带命令退出码、结论落到 `文件:行号`。
 
 | 文件 | 对应 playbook 角色 | 内容 |
 | --- | --- | --- |
 | `audit-backend.md` | 后端架构师 | 架构与代码质量；含 pytest / ruff 的真实退出码，以及当时无法连上的数据库端口 |
-| `audit-security.md` | 安全审计员 | 认证、授权、敏感信息；与 `docker/audit-deploy.md` 交叉引用，不重复展开部署链 |
+| `audit-security.md` | 安全审计员 | 认证、授权、敏感信息；与 `dsh/docker/audit-deploy.md` 交叉引用，不重复展开部署链 |
 | `audit-testing.md` | 测试工程师 | 测试是否真能失败、CI 是否会跑；并指出 `SKILL.md` 里的 pytest / 前端 test 当时没有自动执行点 |
 | `audit-requirements.md` | 产品（需求覆盖） | `REQUIREMENTS.md` 与三端实现的差距，结论是多租户规格在代码中零实现 |
 
-同一次审计还在本目录之外写了 `frontend/audit-frontend.md`、`frontend/audit-uxui.md`、`docker/audit-deploy.md`。根 `AUDIT-REPORT.md` 是这七份的汇总。后续编码把分报告当证据，把总报告当优先级；报告里的行号是审计当时的行号，改代码前要重新打开源文件核对。
+同一次审计还在原 `backend/` 目录之外写了 `dsh/frontend/audit-frontend.md`、`dsh/frontend/audit-uxui.md`、`dsh/docker/audit-deploy.md`。`dsh/AUDIT-REPORT.md` 是这七份的汇总。后续编码把分报告当证据，把总报告当优先级；报告里的行号是审计当时的行号，改代码前要重新打开源文件核对。
 
 ---
 
@@ -154,19 +156,19 @@ AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 �
 ### 3.2 审计波：playbook 规定产出，文档变成下一轮输入
 
 ```text
-TEAM-PLAYBOOK.md §7 模板
+dsh/TEAM-PLAYBOOK.md §7 模板
         │  create：7 名只读成员，各自一份报告
         ▼
-backend/audit-backend.md
-backend/audit-security.md
-backend/audit-testing.md
-backend/audit-requirements.md
-frontend/audit-frontend.md
-frontend/audit-uxui.md
-docker/audit-deploy.md
+dsh/backend/audit-backend.md
+dsh/backend/audit-security.md
+dsh/backend/audit-testing.md
+dsh/backend/audit-requirements.md
+dsh/frontend/audit-frontend.md
+dsh/frontend/audit-uxui.md
+dsh/docker/audit-deploy.md
         │  队长修正错误表述、补线上实测
         ▼
-AUDIT-REPORT.md
+dsh/AUDIT-REPORT.md
         │  下一轮单会话或交付波先读
         ▼
 按优先级改代码，改完用 playbook 的验证命令复跑
@@ -178,12 +180,12 @@ AUDIT-REPORT.md
 
 实现任务从 `prd.md`（当前行为）和 `SKILL.md`（怎么写才符合仓库）取出范围，写成 `objective` / `acceptance` / `verify` / `inScope` / `outOfScope`。`inScope` 用具体文件，便于完成态核对 `changedPaths`。
 
-复核任务显式指定负责人，并用 `reviewedTaskId` 指向被复核任务。通过复核之后，队长仍按 playbook 自己复跑关键命令。类型检查、测试、线上实测至少做两项。部署、推送、轮换凭据不由模型自行完成，见 `TEAM-PLAYBOOK.md` 第 5 节和 `DEPLOYMENT.md`。
+复核任务显式指定负责人，并用 `reviewedTaskId` 指向被复核任务。通过复核之后，队长仍按 playbook 自己复跑关键命令。类型检查、测试、线上实测至少做两项。部署、推送、轮换凭据不由模型自行完成，见 `dsh/TEAM-PLAYBOOK.md` 第 5 节和 `DEPLOYMENT.md`。
 
 ### 3.4 文档之间不要混用的三处
 
 1. **两份需求**：`REQUIREMENTS.md` 是 SaaS 多租户目标规格；`backend/docs/prd.md` 是当前后端实现。实现任务以 `prd.md` 和源码为准。若任务是补齐多租户，才以 `REQUIREMENTS.md` 为范围，并先确认产品要立项。
-2. **两套验证命令**：`SKILL.md` 写日常命令（`uv run pytest`、`pnpm ts:check`）。`TEAM-PLAYBOOK.md` 写团队在受限环境下能跑通的命令（`UV_CACHE_DIR` + `--no-sync`，以及前端 `pnpm run type-check`，且 Web 类型检查前要先 `pnpm run build:prod`，因为 `src/types/*.d.ts` 不入库）。审计报告记录的是当时那一次的退出码。
+2. **两套验证命令**：`SKILL.md` 写日常命令（`uv run pytest`、`pnpm ts:check`）。`dsh/TEAM-PLAYBOOK.md` 写团队在受限环境下能跑通的命令（`UV_CACHE_DIR` + `--no-sync`，以及前端 `pnpm run type-check`，且 Web 类型检查前要先 `pnpm run build:prod`，因为 `src/types/*.d.ts` 不入库）。审计报告记录的是当时那一次的退出码。
 3. **教学片段与仓库代码**：`fastapi.md`、`basics.md` 里的短示例用于对齐 API 心智；粘贴进仓库前要改成项目的 `SuccessResponse`、`AuthPermission`、`CRUDBase` 和 `uv run main.py` 入口，这些在 `SKILL.md` 与 `arch.md`。
 
 ---
@@ -195,9 +197,9 @@ AUDIT-REPORT.md
 | 改一个明确的小功能 | `SKILL.md` | `backend/docs/prd.md`、`arch.md` |
 | 新增后端模块或改表 | `SKILL.md` §3、§5 | `basics.md`、`backend/README.md` |
 | 只想搞清 FastAPI / ORM 在本项目里怎么写 | `fastapi.md` | `basics.md`、`arch.md` |
-| 判断该不该组队 | `TEAM-PLAYBOOK.md` §1–§2 | 审计波模板 §7 |
-| 接着上一轮审计改缺陷 | `AUDIT-REPORT.md` | 对应的 `backend/audit-*.md`，再打开源文件核对行号 |
-| 部署或推远端 | `DEPLOYMENT.md` | `TEAM-PLAYBOOK.md` §5（须人确认） |
+| 判断该不该组队 | `dsh/TEAM-PLAYBOOK.md` §1–§2 | 审计波模板 §7 |
+| 接着上一轮审计改缺陷 | `dsh/AUDIT-REPORT.md` | 对应的 `dsh/backend/audit-*.md`，再打开源文件核对行号 |
+| 部署或推远端 | `DEPLOYMENT.md` | `dsh/TEAM-PLAYBOOK.md` §5（须人确认） |
 | 评估多租户要不要做 | `audit-requirements.md` 的结论 | `REQUIREMENTS.md` 相关章节 |
 
 ---
@@ -216,15 +218,15 @@ AUDIT-REPORT.md
 
 | 文件 | 证据位置 | 关联内容与用途 |
 | --- | --- | --- |
-| [TEAM-PLAYBOOK.md](../../TEAM-PLAYBOOK.md) | 第 1、11–21、35–73、97–148 行 | 核心协作规则：DSH 插件栈、工具探测、单会话/子任务/团队选择、审计波和交付波、文件范围分工、复核与修复、验收、归档，以及七角色任务模板。 |
-| [AUDIT-REPORT.md](../../AUDIT-REPORT.md) | 第 5、174、232–234 行 | 七名成员并行审计的总交付物；记录实现、修复、复审过程及团队归档，并链接协作手册。 |
-| [backend/audit-backend.md](../audit-backend.md) | 文件开头；手册 §7 的 `a1` 模板 | 后端架构师的分报告；记录后端架构、代码质量、检查结果和未验证项。 |
-| [backend/audit-testing.md](../audit-testing.md) | 第 1–6、508–510 行 | 明确记录测试工程师、team `fastapiadmin-audit`、task `t3`；说明其他 teammate 的并行产物使工作区在审计开始时已含改动。 |
-| [backend/audit-security.md](../audit-security.md) | 第 3–9 行 | 安全成员任务 `t4` 的分报告；定义只读边界、证据规则，并交叉引用运维任务 `t6`。 |
-| [backend/audit-requirements.md](../audit-requirements.md) | 文件开头；手册 §7 的 `a6` 模板 | 产品/需求覆盖角色的分报告；把需求规格与三端代码进行映射。 |
-| [frontend/audit-frontend.md](../../frontend/audit-frontend.md) | 文件开头；手册 §7 的 `a2` 模板 | 前端角色的分报告；覆盖 Web 和移动端，后端只作为接口契约参照。 |
-| [frontend/audit-uxui.md](../../frontend/audit-uxui.md) | 文件开头；手册 §7 的 `a7` 模板 | UX/UI 角色的分报告；记录静态证据、未执行的浏览器/真机检查及验证缺口。 |
-| [docker/audit-deploy.md](../../docker/audit-deploy.md) | 第 3、114、301、429、775 行 | 运维任务 `t6` 的分报告；提到团队状态进入构建上下文的风险，以及并行成员改文件造成证据行号变化。 |
+| [dsh/TEAM-PLAYBOOK.md](../../dsh/TEAM-PLAYBOOK.md) | 第 1、11–21、35–73、97–148 行 | 核心协作规则：DSH 插件栈、工具探测、单会话/子任务/团队选择、审计波和交付波、文件范围分工、复核与修复、验收、归档，以及七角色任务模板。 |
+| [dsh/AUDIT-REPORT.md](../../dsh/AUDIT-REPORT.md) | 第 5、174、232–234 行 | 七名成员并行审计的总交付物；记录实现、修复、复审过程及团队归档，并链接协作手册。 |
+| [dsh/backend/audit-backend.md](../../dsh/backend/audit-backend.md) | 文件开头；手册 §7 的 `a1` 模板 | 后端架构师的分报告；记录后端架构、代码质量、检查结果和未验证项。 |
+| [dsh/backend/audit-testing.md](../../dsh/backend/audit-testing.md) | 第 1–6、508–510 行 | 明确记录测试工程师、team `fastapiadmin-audit`、task `t3`；说明其他 teammate 的并行产物使工作区在审计开始时已含改动。 |
+| [dsh/backend/audit-security.md](../../dsh/backend/audit-security.md) | 第 3–9 行 | 安全成员任务 `t4` 的分报告；定义只读边界、证据规则，并交叉引用运维任务 `t6`。 |
+| [dsh/backend/audit-requirements.md](../../dsh/backend/audit-requirements.md) | 文件开头；手册 §7 的 `a6` 模板 | 产品/需求覆盖角色的分报告；把需求规格与三端代码进行映射。 |
+| [dsh/frontend/audit-frontend.md](../../dsh/frontend/audit-frontend.md) | 文件开头；手册 §7 的 `a2` 模板 | 前端角色的分报告；覆盖 Web 和移动端，后端只作为接口契约参照。 |
+| [dsh/frontend/audit-uxui.md](../../dsh/frontend/audit-uxui.md) | 文件开头；手册 §7 的 `a7` 模板 | UX/UI 角色的分报告；记录静态证据、未执行的浏览器/真机检查及验证缺口。 |
+| [dsh/docker/audit-deploy.md](../../dsh/docker/audit-deploy.md) | 第 3、114、301、429、775 行 | 运维任务 `t6` 的分报告；提到团队状态进入构建上下文的风险，以及并行成员改文件造成证据行号变化。 |
 | [.gitignore](../../.gitignore) | 第 72–78 行 | 忽略 `CLAUDE.md`、`AGENTS.md`、`.codebuddy`、`.agent`、`.workbuddy`；第 77–78 行明确把 `.agent-teams/` 标为本地协作运行期状态。忽略规则不等于这些文件已存在。 |
 | [backend/docs/doc.md](doc.md) | §1.2、§2.6、§3.2–§3.3、§5 | 文档索引与本次盘点结果，串联规则、任务产物和下一轮开发输入；本身不运行团队。 |
 
@@ -257,7 +259,7 @@ README、CHANGELOG 等也可被成员作为背景读取，但没有因此被列�
 
 ### 5.5 当前工作区状态及文档时效
 
-- **存在**：`TEAM-PLAYBOOK.md`、审计总报告和七份分报告、`.gitignore` 中的团队状态忽略规则，以及移动端 `.agents/skills/`。
+- **存在**：`dsh/TEAM-PLAYBOOK.md`、审计总报告和七份分报告、`.gitignore` 中的团队状态忽略规则，以及移动端 `.agents/skills/`。
 - **根目录未发现**：`AGENTS.md`、`.agent-teams/`、`.agent/`、`.agents/`、`.codex/`、`.codebuddy/`、`.workbuddy/`。这仅说明本次工作区没有这些路径，不能证明其他机器没有，也不能证明团队插件是否已安装。
 - **仓库外引用**：手册中的 `cordis.patch.yml`、profile 配置、插件 `README_ZH.md`、`.generations/live/` 和 DeepSeek 实验包路径属于 DSH 宿主环境，未在本次项目文件检查中验证。插件版本、成员上限、移除记录都应按历史记载理解。
 - **构建忽略规则**：当前根 [.dockerignore](../../.dockerignore) 未显式排除 `.agent-teams/`。运维审计曾记录此问题；本次只记录规则现状，未验证实际构建上下文或镜像是否包含团队状态。

@@ -30,7 +30,7 @@ Controller → Service → CRUD / 适配器
 | `app/config/`、`env/` | Pydantic Settings 配置；按 `ENVIRONMENT` 读取 `.env.dev` 或 `.env.prod`，环境变量可覆盖配置。 |
 | `app/plugin/`、`templates/` | 二次开发插件与代码生成模板。启动时扫描 `module_*/**/controller.py` 并注册插件路由。 |
 
-内置业务域包括：`system`（用户、角色、菜单、部门、字典、参数、认证等）、`monitor`（健康、缓存、在线用户、服务器）、`task`（定时任务）、`storage`（存储传输）、`ai`（AI 对话）、`generator`（代码生成）、`common`（文件）。`task` 和 `storage` 的接口路径为兼容现有前端，仍保留 `/task/cronjob` 与 `/task/storage`。路由冲突或插件导入失败会在启动时终止应用，避免接口静默缺失。
+内置业务域包括：`system`（用户、角色、菜单、部门、字典、参数、认证等）、`monitor`（健康、缓存、在线用户、服务器）、`task`（定时任务）、`storage`（存储传输）、`ai`（AI 对话）、`generator`（代码生成）、`common`（文件）。`task` 和 `storage` 的接口路径分别为 `/task/cronjob` 与 `/task/storage`。路由冲突或插件导入失败会在启动时终止应用，避免接口静默缺失。
 
 ## 3. 请求与安全链路
 

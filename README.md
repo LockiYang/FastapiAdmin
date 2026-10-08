@@ -140,18 +140,17 @@ FastapiAdmin/            # Monorepo 全栈工程
 
 ## 🔧 模块裁剪
 
-已实现的扩展模块可通过 `backend/app/config/setting.py` 中的 `ENABLED_MODULES` 按需启用 / 停用。默认启用 `generator`、`task`、`storage`；加入 `ai` 可启用 AI 对话。停用模块的接口、运行时初始化和导航菜单不会加载或显示，已有数据库表与菜单数据会保留。`chat` 为规划项，目前加入列表不会启用内部聊天：
+已实现的扩展模块可通过 `backend/app/config/setting.py` 中的 `ENABLED_MODULES` 按需启用 / 停用。默认启用 `generator`、`task`、`storage`、`ai`。停用模块的接口、运行时初始化和导航菜单不会加载或显示，已有数据库表与菜单数据会保留。`chat` 为规划项，目前加入列表不会启用内部聊天：
 
 ```python
 # 默认配置；task 和 storage 可以分别移除
-ENABLED_MODULES = ["generator", "task", "storage"]
+ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 ```
 
 ## 🚦 部署说明
 
 - **内部聊天范围**：规划为纯文字私聊 / 群聊；当前 `fastlink/fachat` 是本地模拟页面，尚无对应的服务端消息接口。
-- **存储兼容路径**：存储后端位于 `app/modules/storage`，现有接口路径仍为 `/task/storage/*`，已有前端和菜单无需迁移。
-- **定时任务接口**：定时任务后端位于 `app/modules/task`，接口路径仍为 `/task/cronjob/*`。
+- **页面与接口路径**：侧边栏页面分别位于 `/task/*`、`/storage/*`；后端 API 路径分别为 `/task/cronjob/*`、`/task/storage/*`。
 - **单实例部署**：定时任务调度器涉及本地调度与共享状态；多实例部署需确认调度锁、任务执行与状态同步符合预期。
 - **密钥安全**：所有第三方密钥（AI、云存储等）请配置在 `backend/env/.env.*` 环境变量中，**切勿提交到仓库或写入数据库**。
 - **数据库迁移**：正式环境请使用 Alembic 迁移（`uv run alembic upgrade head`）管理表结构变更，`create_all` 仅用于首次初始化的兜底。

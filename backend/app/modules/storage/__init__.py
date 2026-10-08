@@ -6,5 +6,5 @@
 - ``transfer``: 传输任务引擎
 - ``workflow``: 传输流程编排（画布 CRUD、发布、执行 API）
 
-为兼容现有前端和菜单，路由保留 ``/task/storage``；启停由独立的 ``storage`` 开关控制。
+接口路径为 ``/task/storage``；启停由独立的 ``storage`` 开关控制。
 """

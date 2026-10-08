@@ -112,7 +112,11 @@ class MenuService:
             if not parent_menu:
                 raise CustomException(msg="更新失败，父级菜单不存在")
 
-        new_menu = await MenuCRUD(self.auth, self.db).update(id=id, data=data)
+        update_data = data.model_dump(exclude_unset=True, exclude_none=True)
+        if "parent_id" in data.model_fields_set:
+            # 菜单可移至一级；通用 CRUD 的 exclude_none 会丢掉显式传入的 null。
+            update_data["parent_id"] = data.parent_id
+        new_menu = await MenuCRUD(self.auth, self.db).update(id=id, data=update_data)
 
         if data.status is not None:
             await self.set_available(data=BatchSetAvailable(ids=[id], status=data.status))

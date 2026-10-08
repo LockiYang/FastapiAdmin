@@ -491,7 +491,7 @@ async function handleExecuteConfirm() {
             type: "primary",
             size: "small",
             text: true,
-            onClick: () => void router.push("/task/storage/workflow/transfer"),
+            onClick: () => void router.push("/storage/transfer"),
           },
           () => "查看任务"
         ),

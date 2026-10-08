@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # ================================================= #
     ENVIRONMENT: EnvironmentEnum = EnvironmentEnum.DEV
     # 可选业务模块；调整后需重启服务。存储与定时任务可分别启用。
-    ENABLED_MODULES: list[str] = ["generator", "task", "storage"]
+    ENABLED_MODULES: list[str] = ["generator", "task", "storage", "ai"]
 
     def module_enabled(self, name: str) -> bool:
         """判断可选业务模块是否启用。"""
@@ -273,7 +273,7 @@ class Settings(BaseSettings):
     def ALLOW_ORIGINS(self) -> list[str]:
         """根据环境动态返回 CORS 允许的域名列表。
 
-        安全默认（见 backend/audit-security.md S9）：
+        安全默认（见 dsh/backend/audit-security.md S9）：
         - 非生产环境：返回 ``["*"]``，保留本地联调便利；
         - 生产环境：只接受**显式配置**的域名清单。未配置、或清单里只有通配符 ``"*"`` 时返回空列表
           （空列表 = 不下发任何跨域许可响应头；同源部署的 Web 端不受影响），并打 warning 提示运维配置。

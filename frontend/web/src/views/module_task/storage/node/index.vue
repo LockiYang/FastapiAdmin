@@ -458,7 +458,7 @@ async function handleTest(id: number) {
 // 打开浏览：跳转到文件管理并携带存储源信息
 function handleOpen(row: SourceTable) {
   router.push({
-    path: "/task/storage/browse",
+    path: "/storage/browse",
     query: { source_id: row.id, name: row.name, protocol: row.protocol },
   });
 }

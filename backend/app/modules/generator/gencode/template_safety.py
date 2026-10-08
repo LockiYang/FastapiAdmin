@@ -1,6 +1,6 @@
 """代码生成模板的输入安全处理。
 
-背景（见 backend/audit-backend.md 的 B1）
+背景（见 dsh/backend/audit-backend.md 的 B1）
 ======================================
 代码生成器把「表/列元数据」渲染成 ``.py`` / ``.vue`` / ``.ts`` / ``.toml`` 源文件，产物会被写进
 仓库，其中 ``backend/app/plugin/**`` 会在应用启动时被 ``app/core/discover.py`` 逐个

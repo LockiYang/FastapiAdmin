@@ -67,7 +67,7 @@ class GenTableColumnSchema(BaseModel):
         """列名白名单校验：必须能直接充当 Python / JS 标识符。
 
         列名会被原样写进 ``Mapped[..]`` 属性名、``class`` 字段名与前端 ``prop``，
-        是注入面之一（见 backend/audit-backend.md B1）。非法名（含引号/空格/换行/数字开头等）
+        是注入面之一（见 dsh/backend/audit-backend.md B1）。非法名（含引号/空格/换行/数字开头等）
         在此直接拒绝，避免生成出语法不合法或可被注入的代码。
 
         参数:
@@ -103,7 +103,7 @@ class GenTableColumnSchema(BaseModel):
         MySQL 的 ``enum(...)``/``set(...)`` 会先归一化为基名 ``enum``/``set``（其成员列表既无用途也含引号）。
 
         为什么必须校验：列类型会参与「代码位置」派生（SQLAlchemy 类型名 + 长度/精度），
-        任意文本一旦被拼接进生成代码就等于注入面（见 backend/audit-backend.md B1）。
+        任意文本一旦被拼接进生成代码就等于注入面（见 dsh/backend/audit-backend.md B1）。
 
         参数:
         - v (str | None): 原始列类型。

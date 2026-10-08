@@ -130,6 +130,7 @@
               :data="menuOptions"
               node-key="value"
               filterable
+              clearable
               check-strictly
               :render-after-expand="false"
               :disabled="createParentLocked"
@@ -505,7 +506,6 @@ const menuDialogFormItems = computed<FormItem[]>(() => {
       key: "parent_id",
       label: "父级菜单",
       type: "input",
-      hidden: t === MenuTypeEnum.CATALOG,
     },
     { key: "name", label: "菜单名称", type: "input", props: { placeholder: "请输入菜单名称" } },
     { key: "title", label: "菜单标题", type: "input", props: { placeholder: "请输入菜单标题" } },
@@ -1170,7 +1170,7 @@ async function handleRowClick(row: MenuTable) {
 
 const allowedMenuTypeValues = computed(() => {
   const pid = formData.value.parent_id;
-  const parentNode = findMenuNodeById(pid);
+  const parentNode = findMenuNodeById(pid ?? undefined);
   if (!parentNode?.type) {
     return [MenuTypeEnum.CATALOG, MenuTypeEnum.MENU, MenuTypeEnum.EXTLINK];
   }
@@ -1259,7 +1259,11 @@ async function handleSubmit() {
   submitLoading.value = true;
   try {
     if (id) {
-      await MenuAPI.updateMenu(id, { id, ...formData.value });
+      await MenuAPI.updateMenu(id, {
+        id,
+        ...formData.value,
+        parent_id: formData.value.parent_id ?? null,
+      });
     } else {
       await MenuAPI.createMenu(formData.value);
     }
