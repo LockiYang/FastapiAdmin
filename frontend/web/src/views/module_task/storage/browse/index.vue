@@ -1118,7 +1118,12 @@ function uploadFiles(files: File[]) {
     return;
   }
   for (const file of valid) {
-    const item: UploadItem = { id: ++uploadSeq, name: file.name, progress: 0, status: "uploading" };
+    const item = reactive<UploadItem>({
+      id: ++uploadSeq,
+      name: file.name,
+      progress: 0,
+      status: "uploading",
+    });
     uploadingList.value.push(item);
     void doUpload(file, item, tab);
   }
