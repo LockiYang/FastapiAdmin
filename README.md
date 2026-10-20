@@ -1,51 +1,3 @@
-<div align="center">
-     <p align="center">
-          <img src="./frontend/web/public/logo.png" width="150" height="150" alt="logo" />
-     </p>
-     <h1>FastApiAdmin <sup style="background-color: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.4em; vertical-align: super; margin-left: 5px;">v3.0.0</sup></h1>
-     <h3>🚀 追求极致代码质量，五分钟搭建企业级中后台，开箱即用</h3>
-     <p>基于 <b>FastAPI + Vue3 + TypeScript</b> 的全栈快速开发平台，Web / H5 / 小程序一站式交付</p>
-     <p align="center">
-          <a href="https://gitee.com/fastapiadmin/FastapiAdmin.git" target="_blank">
-               <img src="https://gitee.com/fastapiadmin/FastapiAdmin/badge/star.svg?theme=dark" alt="Gitee Stars">
-          </a>
-          <a href="https://github.com/fastapiadmin/FastapiAdmin.git" target="_blank">
-               <img src="https://img.shields.io/github/stars/fastapiadmin/FastapiAdmin?style=social" alt="GitHub Stars">
-          </a>
-          <a href="https://github.com/fastapiadmin/FastapiAdmin/forks" target="_blank">
-               <img src="https://img.shields.io/github/forks/fastapiadmin/FastapiAdmin?style=social" alt="GitHub Forks">
-          </a>
-          <br>
-          <a href="https://gitee.com/fastapiadmin/FastapiAdmin/blob/master/LICENSE" target="_blank">
-               <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
-          </a>
-          <a href="https://github.com/fastapiadmin/FastapiAdmin/commits" target="_blank">
-               <img src="https://img.shields.io/github/commit-activity/m/fastapiadmin/FastapiAdmin?style=flat&label=commits" alt="Commit Activity">
-          </a>
-          <img src="https://img.shields.io/badge/Python-≥3.12-blue">
-          <img src="https://img.shields.io/badge/NodeJS-≥20.0-blue">
-          <img src="https://img.shields.io/badge/MySQL-≥8.0-blue">
-          <img src="https://img.shields.io/badge/Redis-≥7.0-blue">
-     </p>
-
-简体中文 | [English](./README.en.md)
-
-</div>
-
-## 🖥️ 界面一览
-
-**Web 端**
-
-![仪表盘](frontend/web/public/dashboard.png)
-
-**移动端（H5 / 小程序 / App 同一套代码）**
-
-<p>
-<img src="frontend/web/public/app_login.png" width="180" />
-<img src="frontend/web/public/app_home.png" width="180" />
-<img src="frontend/web/public/app_mine.png" width="180" />
-</p>
-
 ## 💡 为什么选择 FastapiAdmin？
 
 | 你需要的 | FastapiAdmin | Django Admin | 纯前端模板 |
@@ -79,6 +31,7 @@ cp frontend/web/.env.development.example frontend/web/.env.development
 
 # 3. 启动后端（首次自动建表 + 初始化数据）
 cd backend && uv sync && uv run main.py run --env=dev
+uv sync --extra mysql && uv run --extra mysql main.py run --env=dev
 
 # 4. 启动前端
 cd ../frontend/web && pnpm install && pnpm run dev
@@ -90,6 +43,14 @@ cd ../frontend/web && pnpm install && pnpm run dev
 |---------|------|
 | Python ≥ 3.12 | Node.js ≥ 20.0 + pnpm |
 | MySQL 8.0+ / PostgreSQL 14+ | Redis 6.x / 7.x |
+
+Mysql建库语句
+
+```
+CREATE DATABASE IF NOT EXISTS `fastapiadmin`
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+```
 
 ### 🐳 或者：Docker 一键部署
 
@@ -150,43 +111,15 @@ ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 ## 🚦 部署说明
 
 - **内部聊天范围**：规划为纯文字私聊 / 群聊；当前 `fastlink/fachat` 是本地模拟页面，尚无对应的服务端消息接口。
-- **页面与接口路径**：侧边栏页面分别位于 `/task/*`、`/storage/*`；后端 API 路径分别为 `/task/cronjob/*`、`/task/storage/*`。
+- **页面与接口路径**：侧边栏页面分别位于 `/task/`*、*`/storage/`；后端 API 路径分别为 `/task/cronjob/`*、`/task/storage/*`。
 - **单实例部署**：定时任务调度器涉及本地调度与共享状态；多实例部署需确认调度锁、任务执行与状态同步符合预期。
-- **密钥安全**：所有第三方密钥（AI、云存储等）请配置在 `backend/env/.env.*` 环境变量中，**切勿提交到仓库或写入数据库**。
+- **密钥安全**：所有第三方密钥（AI、云存储等）请配置在 `backend/env/.env.`* 环境变量中，**切勿提交到仓库或写入数据库**。
 - **数据库迁移**：正式环境请使用 Alembic 迁移（`uv run alembic upgrade head`）管理表结构变更，`create_all` 仅用于首次初始化的兜底。
-
-## 📷 更多截图
-
-| 登录 | 代码生成 | AI 助手 |
-| ---- | -------- | ------- |
-| ![登录](frontend/web/public/login.png) | ![代码生成](frontend/web/public/gencode.png) | ![AI](frontend/web/public/ai.png) |
 
 ## 📖 文档地址
 
 - 🌐 [官网文档](https://service.fastapiadmin.com) — 完整开发指南、架构设计、二开教程
 - 📁 子工程 README：[backend](backend/README.md) · [web](frontend/web/README.md) · [移动端](frontend/app/README.md) · [Docker](docker/README.md)
-
-## 🤝 参与贡献
-
-欢迎提交 Issue / PR！详见 [贡献指南](https://service.fastapiadmin.com/about/contributing)。
-
-## 👥 社区与支持
-
-<p>
-<img src="frontend/web/public/group.png" width="200" height="260" style="margin-right:30px"/>
-<img src="frontend/web/public/wechatPay.jpg" width="200" height="260" />
-</p>
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=fastapiadmin/FastapiAdmin&type=Date)](https://star-history.com/#fastapiadmin/FastapiAdmin&Date)
-
-## 👥 贡献者
-> 感谢以下所有给 FastapiAdmin 贡献过代码的 开发者。
-
-<a href="https://github.com/fastapiadmin/FastapiAdmin/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=fastapiadmin/FastapiAdmin"/>
-</a>
 
 ## 🙏 鸣谢
 
