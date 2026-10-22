@@ -1,181 +1,551 @@
-# FastapiAdmin 后端产品需求文档
+# FastapiAdmin 产品需求文档
 
-> 文档基线：当前仓库的后端实现。业务范围以本文件为准；接口行为以 `backend/app/` 中的 Controller、Schema、Service 和 Model 为核对依据。
+| 项 | 说明 |
+| --- | --- |
+| 产品 | FastapiAdmin 管理后台 |
+| 版本 | v3.0.0 |
+| 技术栈 | 后端 Python + FastAPI + SQLAlchemy + Redis；管理端 Vue 3 + Element Plus + TypeScript + Vite + Pinia；移动端 uni-app |
+| 应用划分 | 管理端 `frontend/web`、移动端 `frontend/app`、后端 `backend` |
+| 文档范围 | 本仓库已实现的后端能力 |
 
 ## 1. 产品概述
 
-### 1.1 产品目标
+FastapiAdmin 是一套前后端分离的管理后台。它提供一套账号体系、菜单与按钮权限、部门数据范围、字典与系统参数、公告、工单、版本、审计日志，以及定时任务、多协议存储与文件传输、AI 对话和代码生成。
 
-FastapiAdmin 为一个管理后台提供账号登录、组织与权限管理、内容配置、工单、任务调度、文件存储与传输、AI 对话、代码生成和运行监控。后端向管理端、移动端及其他 API 客户端提供接口。用户以角色获得功能权限；部分业务数据按创建人或部门控制可见范围。
+产品同时服务管理端和移动端，两端共用同一套账号与令牌。菜单用 `scope` 区分可见端：`web` 为管理端，`desktop` 与 `app` 为移动端。
 
-### 1.2 使用者
+使用者：
 
-| 使用者 | 工作场景 |
+- **超级管理员**：`sys_user.is_superuser = true`。跳过功能权限和数据范围检查，管理全平台账号与运行资源。
+- **后台管理员**：按已授权菜单和按钮工作，数据可见范围由角色的 `data_scope` 决定。
+- **普通用户**：登录、维护个人资料、查看获授权的数据并使用业务功能。
+- **访客**：使用登录、验证码、注册和已发布版本查询等开放接口。
+
+## 2. 全局约定
+
+### 2.1 业务描述
+
+所有 JSON 接口共用同一套响应、鉴权和列表查询约定。受保护接口默认要求登录，并按菜单上的 `permission` 标识鉴权。文件下载、SSE 和 WebSocket 使用各自的协议，不套这层 JSON 信封。
+
+### 2.2 业务规则
+
+- 统一响应：`{ code, msg, data, status_code, success }`。`code == 0` 表示成功。`status_code` 与 HTTP 状态一致。
+- 未登录或令牌无效时，业务码使用 `401`（未授权）、`10401`（认证过期，需重新登录）、`4504`（无效令牌）或 `4505`（令牌过期），以前端约定的认证码为准。
+- 已登录但没有对应权限标识时返回 `10403`（无权限操作）。
+- 访问令牌放在请求头 `Authorization: Bearer <access_token>`。登录成功同时签发刷新令牌。JWT 的 `sub` 是会话 ID，不是用户 ID。
+- 访问令牌和刷新令牌默认各有效 12 小时（`ACCESS_TOKEN_EXPIRE_SECONDS` / `REFRESH_TOKEN_EXPIRE_SECONDS`）。
+- 请求认证同时校验令牌签名、Redis 中的会话，以及数据库里的用户状态。停用账号不能继续使用旧会话。
+- 刷新接口轮换刷新令牌。已经失效的旧刷新令牌再次使用时，撤销该会话。
+- 退出登录删除该会话在 Redis 中的访问令牌、刷新令牌和会话信息。
+- 账号密码登录对非本地 IP 做 Redis 固定窗口限流。滑块验证码默认开启（`CAPTCHA_ENABLE`），有效期 60 秒。
+- 新密码长度 6–128，且须同时覆盖字母、数字、符号中的至少两类。修改密码时，旧密码只校验长度。密码以哈希存储，接口不回显。
+- 演示模式（参数 `demo_enable`）下，非 GET 且不在白名单路径、来源 IP 也不在 `ip_white_list` 的请求被拒绝。`ip_black_list` 中的 IP 直接拒绝。
+- 通用状态：`0` 启用，`1` 停用。公告、工单、版本、传输任务、登录日志另有自己的状态，以对应模块为准。
+- 删除为软删除：写入 `is_deleted` 与 `deleted_time`。列表默认不返回已删除行。
+- 时间字段为带时区的日期时间，JSON 输出为统一的展示格式。
+
+**通用字段**
+
+业务表默认带 `ModelMixin`。带创建人审计的表再叠加 `UserMixin`。下文各表只列业务字段，并注明是否含用户审计。
+
+| 字段 | 说明 |
 | --- | --- |
-| 超级管理员 | 管理全平台账号、角色、菜单及运行资源；通用功能权限和数据范围校验对其放行。 |
-| 后台管理员 | 在已授权功能内管理用户、部门、公告、工单及扩展模块。 |
-| 普通用户 | 登录、维护个人信息、查看获授权的数据并使用业务功能。 |
-| 访客 | 使用登录、验证码、注册和已发布版本查询等开放接口。 |
+| id | 主键 |
+| uuid | 全局唯一标识 |
+| is_deleted | 是否已删除 |
+| created_time / updated_time / deleted_time | 创建、更新、删除时间 |
+| created_id / updated_id / deleted_id | 仅 `UserMixin`。创建人、更新人、删除人，外键到 `sys_user`，删除用户时置空 |
 
-### 1.3 功能地图
+**数据范围**
 
-| 业务域 | 功能 |
+超管不套数据范围。其他用户只采用未删除且启用（`status = 0`）角色上的 `data_scope`。多角色并存时，`3` 优先，其次 `2`，否则按本人。
+
+| 取值 | 生效含义 |
 | --- | --- |
-| 系统 | 认证、用户、角色、菜单、部门、岗位、字典、参数、公告、工单、版本、日志 |
-| 任务 | 定时任务节点、调度器、执行日志、存储源、文件浏览、文件传输、传输流程 |
-| 智能与开发 | AI 聊天、用户模型配置、代码生成、示例插件 |
-| 运维与公共服务 | 健康检查、在线会话、缓存监控、服务器信息、基础统计、文件上传下载 |
+| `1` | 仅本人。用户表按用户 `id`；其他带 `created_id` 的表按创建人 |
+| `2` | 当前用户所属部门及其子部门。用户表按用户自身 `dept_id`；其他表按创建人的 `dept_id`。子部门计算失败时降级为仅本部门 |
+| `3` | 全部数据 |
 
-## 2. 通用产品规则
+读取、分页、统计，以及普通单条更新前的对象预读取，使用上述条件。没有 `created_id` 的模型不做这层过滤。通用批量写入 `set`、`delete` 不自行附加数据范围，由各业务在删除前做存在性和授权检查。
 
-### 2.1 接口与响应约定
+数据范围只有这三档。授权接口只接受 `1`–`3`。保存授权时清空 `sys_role_depts`，过滤不读取该表。
 
-- 后端路由按 `/system`、`/task`、`/ai`、`/generator`、`/monitor`、`/common` 聚合；部署时对外访问地址通常带 `/api/v1` 前缀。下文接口路径从业务域开始写。
-- 普通 JSON 接口返回 `code`、`msg`、`data`、`status_code`、`success`；文件下载、SSE 和 WebSocket 使用各自的协议响应。
-- 分页请求通用参数为 `page_no`（默认 1）、`page_size`（默认 10，最大 100）、`order_by`；分页结果含 `page_no`、`page_size`、`total`、`has_next`、`items`。
-- 通用业务表带 `id`、`uuid`、创建/更新时间及软删除字段。使用 `UserMixin` 的表另带创建、更新、删除人 ID。
-- 业务接口通过请求级数据库事务执行，成功后提交，异常回滚；通用 CRUD 的创建操作填充创建人与更新人。
+### 2.3 通用列表查询
 
-### 2.2 认证、功能权限和数据范围
+分页接口接受：
 
-**超管身份由用户的 `is_superuser=true` 决定**，它会绕过角色权限和数据范围检查，角色统一按菜单、按钮和数据范围授权。
+| 参数 | 说明 |
+| --- | --- |
+| `page_no` | 页码，默认 1 |
+| `page_size` | 每页条数，默认 10，最大 100 |
+| `order_by` | JSON 数组，如 `[{"id":"asc"}]`。缺省按 `id` 升序 |
+| `created_time` / `updated_time` | 可选的时间范围，传 `["start","end"]`，按区间过滤 |
+| `created_id` / `updated_id` | 可选，按创建人、更新人精确匹配 |
 
-1. 账号密码登录成功后签发访问令牌和刷新令牌，并在 Redis 保存会话。请求认证同时校验令牌、Redis 会话及数据库中的用户状态。
-2. 角色关联菜单；启用角色下的启用菜单提供 `permission` 标识。受保护接口通过 `AuthPermission` 校验标识。超级管理员跳过该校验。
-3. 角色数据范围 `data_scope`：`1` 仅本人创建的数据；`2` 当前用户所属部门及子部门成员创建的数据；`3` 全部数据。多角色并存时，`3` 优先，其次 `2`，否则按本人范围。
-4. 通用 CRUD 的读取、分页、统计及普通单条更新的对象预读取使用数据范围条件。用户表的部门范围按用户自身 `dept_id` 过滤；其他带创建人关系的模型按创建人的部门过滤。
-5. 通用批量写入方法 `set`、`delete` 不自行附加数据范围条件；各业务 Service 的存在性和授权检查以实际实现为准。
+各资源另有自己的筛选字段（名称、状态、类型等），随该资源的查询模型。成功时 `data` 为：
 
-### 2.3 状态与授权约定
+| 字段 | 说明 |
+| --- | --- |
+| `page_no` / `page_size` | 当前页与页大小 |
+| `total` | 总条数 |
+| `has_next` | 是否有下一页 |
+| `items` | 当前页数据 |
 
-- 用户、角色、部门、岗位、菜单等通用状态采用 `0=启用`、`1=停用`，具体模块另有状态定义时以模块规则为准。
-- 后台操作由对应接口的权限标识控制。角色授权接口使用 `module_system:role:permission`；上传、下载、任务调度和缓存清理等操作有独立权限标识。
-- 当前用户信息接口返回可见菜单树；管理端菜单按 `scope=web` 读取。
+树形资源（部门、菜单）返回树，不走上述分页信封。
 
-## 3. 系统管理
+### 2.4 通用 CRUD
 
-### 3.1 认证与会话
+多数资源遵循同一组动作。路径前缀在各模块给出，例如用户为 `/system/user`。下文只列出相对这张表的差异和该模块特有接口。对外访问通常再加 `/api/v1`。
 
-**业务目标**：验证用户身份、维持会话，并支持账号密码、第三方及微信小程序登录。
-
-**主要数据**：`sys_user` 存账号和密码哈希；`sys_login_log` 存登录结果；Redis 存会话、访问令牌、刷新令牌和验证码状态。JWT 的 `sub` 是会话 ID。
-
-**业务规则**：
-
-1. 账号密码登录检查用户是否存在、密码是否正确及账号是否停用；可按配置启用滑块验证码。登录请求对非本地 IP 做 Redis 固定窗口限流。
-2. 成功登录记录时间、IP、地点、操作系统和浏览器，生成两个令牌；失败登录记录失败日志。刷新接口轮换刷新令牌，已失效的旧刷新令牌再次使用会撤销会话。
-3. 退出登录删除该会话在 Redis 中的访问令牌、刷新令牌和会话信息。
-4. OAuth 支持 GitHub、Gitee、QQ、微信开放平台；微信小程序支持 code 登录、手机号登录及小程序码生成。第三方能力依赖部署凭据。
-5. 验证码获取、滑块完成和账号密码登录使用同一验证码状态；验证码是否启用由配置决定。
-
-| 方法 | 路径 | 用途 |
+| 方法 | 动作 | 说明 |
 | --- | --- | --- |
-| POST | `/system/auth/login` | 账号密码登录 |
-| POST | `/system/auth/token/refresh` | 刷新访问与刷新令牌 |
-| GET / POST | `/system/auth/captcha/get`、`/system/auth/captcha/slider/complete` | 获取并完成滑块验证码 |
-| POST | `/system/auth/logout` | 退出当前会话 |
-| GET | `/system/auth/oauth/{provider}/login`、`/system/auth/oauth/{provider}/callback` | 第三方授权与回调 |
-| POST | `/system/auth/wx-login`、`/system/auth/wx-phone-login`、`/system/auth/wx-qrcode/generate` | 微信小程序登录、手机号登录及小程序码 |
+| GET | `list` 或 `page` | 分页列表 |
+| GET | `detail/{id}` | 单条 |
+| POST | `create` | 新增。创建人、更新人取当前用户 |
+| PUT | `update/{id}` | 保存单条 |
+| DELETE | `delete` | 批量软删除，请求体为 ID 列表 |
+| PATCH | `status/batch` | 批量启停，请求体为 `ids` 与 `status` |
 
-### 3.2 用户与个人资料
+部分资源使用 `tree` 代替 `list`，或没有启停、导出。以该模块的接口表为准。
 
-**业务目标**：维护账号档案、部门和角色关系，提供个人资料维护与 Excel 批量处理。
+### 2.5 鉴权头与入口
 
-**数据模型**：`sys_user` 的核心字段为 `username`、`password`、`name`、`mobile`、`email`、`gender`、`avatar`、`status`、`is_superuser`、`dept_id`、`last_login`；`sys_user_roles`、`sys_user_positions` 记录多对多关系。
-
-**业务规则**：
-
-1. 管理员可按条件查询、创建、修改、删除、启停用户，指定部门、角色和岗位。用户名在数据库中唯一；角色或岗位分配时校验目标存在且启用。
-2. 当前用户可查询个人信息和可见菜单、更新基本资料、使用旧密码修改密码。管理员重置其他用户密码时不得重置超级管理员密码。
-3. 删除用户前校验用户存在；超级管理员和当前登录用户不能删除。删除时先解除角色、岗位关系，再执行软删除。
-4. 注册接口创建启用的普通账号；注册用户的创建人与更新人标记为自身。忘记密码接口接收用户名申请，不直接修改密码。
-5. 支持下载导入模板、导入用户数据和按查询结果导出 Excel；导入失败时返回对应错误信息。
-
-| 方法 | 路径 | 用途 |
+| 端 | 前缀 | 身份 |
 | --- | --- | --- |
-| GET / PUT | `/system/user/current/info`、`/system/user/current/info/update` | 当前用户资料与菜单、修改资料 |
-| PUT | `/system/user/password/change`、`/system/user/password/reset/{id}` | 修改本人密码、管理员重置密码 |
-| POST | `/system/user/password/forget`、`/system/user/register` | 忘记密码申请、注册 |
-| GET | `/system/user/list`、`/system/user/detail/{id}` | 分页与详情 |
-| POST / PUT / DELETE / PATCH | `/system/user/create`、`/system/user/update/{id}`、`/system/user/delete`、`/system/user/status/batch` | 管理用户 |
-| GET / POST | `/system/user/import/template`、`/system/user/import/data`、`/system/user/export` | 模板、导入和导出 |
+| 全部 JSON API | `/api/v1` | `Authorization: Bearer` |
+| 开放接口 | 同上 | 登录、验证码、注册、已发布版本等不要求令牌 |
 
-### 3.3 角色与菜单授权
+当前用户信息接口返回该用户可见的菜单树。管理端读取 `scope=web` 的菜单。权限标识形如 `module_system:user:query`，挂在菜单或按钮节点上。角色只收集「启用角色下的启用菜单」。
 
-**业务目标**：以角色组合可调用的功能和可见的数据范围。
+---
 
-**数据模型**：`sys_role` 保存 `name`、唯一 `code`、`status`、`order`、`data_scope`；`sys_role_menus` 保存角色与菜单关系；`sys_menu` 保存菜单树、类型、权限标识、路由、图标、显示和缓存等配置。
+## 3. 登录与会话
 
-**业务规则**：
+### 3.1 业务描述
 
-1. 创建或编辑角色时检查名称和编码重复。角色可批量启停，并导出 Excel；选项接口返回可用角色。
-2. 角色授权一次提交角色 ID、菜单 ID 和 `data_scope`，替换角色菜单关系并保存数据范围。菜单 ID 与角色 ID 必须存在。
-3. 菜单类型为 `1=目录`、`2=菜单`、`3=按钮`、`4=外链`。目录下可放目录、菜单或外链；菜单下可放按钮；子菜单的可见范围与父菜单一致。
-4. 删除菜单会连同其后代处理；批量启用菜单时联动祖先，批量停用时联动子孙。角色权限只收集启用角色下的启用菜单。
-5. 角色仍关联有效用户时禁止删除，须先解除用户角色关联。有效用户指未删除的用户，包含已停用账号；仅关联已删除用户不阻止删除。批量删除中任一角色不满足此条件时整批拒绝。编辑用户时明确提交空角色列表可清除全部角色关联，未提交角色字段或提交 `null` 则保持原有授权。
-6. 数据范围查询只采用未删除且启用（`is_deleted=false`、`status=0`）角色的 `data_scope`，已删除、已停用角色不参与数据范围计算；多角色范围优先级仍按 §2.2 执行。
+用户用账号密码进入系统，也可以走 GitHub、Gitee、QQ、微信开放平台或微信小程序。登录成功后签发一对令牌，并在 Redis 记下会话。会话里包含用户、权限标识、菜单 ID、登录 IP 和客户端信息。
 
-| 方法 | 路径 | 用途 |
+### 3.2 业务规则
+
+- 账号密码登录检查用户是否存在、密码是否正确、账号是否停用。
+- 开启滑块验证码时，获取验证码、完成滑块、提交登录共用同一条验证码状态。
+- 成功登录写入最后登录时间，并记一条成功登录日志（IP、地点、操作系统、浏览器）。失败记失败日志。
+- 地点是否解析由参数 `ip_location_enable` 决定。
+- OAuth 与小程序登录依赖部署时配置的应用凭据。小程序支持 code 登录、手机号登录，以及生成小程序码。
+- 注册创建一个启用的普通账号，创建人与更新人记为该用户自身。
+- 忘记密码只接收用户名并登记申请，不在该接口修改密码。
+
+### 3.3 数据模型
+
+不单独建登录表。账号见「用户」。登录结果见「日志」。令牌与验证码状态在 Redis：`access_token`、`refresh_token`、`user_session`、`captcha_codes`。
+
+### 3.4 API 接口
+
+| 方法 | 路径 | 登录 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/system/auth/login` | 否 | 账号密码登录。成功返回访问令牌、刷新令牌、`token_type=Bearer`、`expires_in` |
+| POST | `/system/auth/token/refresh` | 否 | 用刷新令牌轮换一对新令牌 |
+| POST | `/system/auth/logout` | 是 | 注销当前会话 |
+| GET / POST | `/system/auth/captcha/get`、`/system/auth/captcha/slider/complete` | 否 | 获取并完成滑块验证码 |
+| GET | `/system/auth/oauth/{provider}/login` | 否 | 跳转第三方授权。`provider` 为 github、gitee、qq、wechat |
+| GET | `/system/auth/oauth/{provider}/callback` | 否 | 第三方回调 |
+| POST | `/system/auth/wx-login` | 否 | 微信小程序 code 登录 |
+| POST | `/system/auth/wx-phone-login` | 否 | 微信小程序手机号登录 |
+| POST | `/system/auth/wx-qrcode/generate` | 是 | 生成小程序码 |
+
+---
+
+## 4. 账号与组织
+
+账号通过部门归属组织，通过角色获得菜单和数据范围，通过岗位做职务标记。一个用户最多一个部门，可以有多个角色和多个岗位。
+
+### 4.1 用户
+
+#### 业务描述
+
+维护可登录的账号，指定部门、角色和岗位，并提供个人资料、改密、导入导出。
+
+#### 业务规则
+
+- 用户名全局唯一。管理端创建：字母开头，2–32 位，仅字母、数字、下划线和 `._-`。注册接口最少 3 位，规则同上。
+- 昵称必填。手机号 11 位且符合号段；邮箱填写时须为合法邮箱。性别：`0` 男，`1` 女，`2` 未知。
+- 分配角色或岗位时，目标必须存在且启用。
+- 当前用户可改自己的基本资料，并用旧密码修改新密码。管理员重置他人密码时，不能重置超级管理员。
+- 不能删除超级管理员，也不能删除当前登录用户。删除前先解除角色、岗位关系，再软删除。
+- 列表与导出走数据范围。导入按行返回失败原因，并提供模板下载。
+- 编辑用户时，提交空角色列表会清空角色；不传该字段或传 `null` 则保持原角色。岗位同理。
+
+#### 数据模型
+
+**sys_user 用户表**（含用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/system/role/list`、`/system/role/detail/{id}`、`/system/role/options` | 角色查询与选项 |
-| POST / PUT / DELETE / PATCH | `/system/role/create`、`/system/role/update/{id}`、`/system/role/delete`、`/system/role/status/batch` | 角色维护 |
-| PUT / POST | `/system/role/permission`、`/system/role/export` | 菜单及数据范围授权、导出 |
-| GET | `/system/menu/tree`、`/system/menu/detail/{id}` | 菜单树与详情 |
-| POST / PUT / DELETE / PATCH | `/system/menu/create`、`/system/menu/update/{id}`、`/system/menu/delete`、`/system/menu/status/batch` | 菜单维护 |
+| username | varchar(64) unique | 登录账号 |
+| password | varchar(255) | 密码哈希 |
+| name | varchar(32) | 昵称 |
+| mobile | varchar(11) | 手机号，可空 |
+| email | varchar(64) | 邮箱，可空 |
+| gender | varchar(1) | `0` 男，`1` 女，`2` 未知 |
+| avatar | varchar(255) | 头像地址 |
+| is_superuser | boolean | 是否超级管理员 |
+| last_login | datetime | 最后登录时间 |
+| dept_id | int | 部门 ID，可空 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+| github_login / gitee_login / wx_login / qq_login | varchar(32) | 第三方账号标识，可空 |
 
-### 3.4 部门与岗位
+**sys_user_roles**：`user_id` + `role_id`。**sys_user_positions**：`user_id` + `position_id`。均为联合主键，删除用户或角色时级联删除关联。
 
-**业务目标**：维护组织树和岗位目录，作为用户归属及部门数据范围的基础。
+#### API 接口
 
-**数据模型**：`sys_dept` 包含唯一 `code`、`name`、`parent_id`、`order`、`status`；`sys_position` 包含唯一 `code`、`name`、`order`、`status`。用户最多关联一个部门，可关联多个岗位。
+前缀 `/system/user`。列表、详情、新增、修改、删除、批量启停使用通用 CRUD。
 
-**业务规则**：部门支持树形查询；存在子部门时拒绝删除父部门。部门批量启用时联动上级，停用时联动下级。岗位支持按状态获取下拉选项及 Excel 导出。
+| 差异 | 说明 |
+| --- | --- |
+| GET `current/info` | 当前用户资料与可见菜单。`check_data_scope=false` 时只返回菜单和权限 |
+| PUT `current/info/update` | 修改本人资料 |
+| PUT `password/change` | 本人修改密码，需旧密码 |
+| PUT `password/reset/{id}` | 管理员重置他人密码 |
+| POST `password/forget` | 忘记密码申请，不改密码 |
+| POST `register` | 开放注册 |
+| GET `import/template` | 下载导入模板 |
+| POST `import/data` | 导入用户 |
+| POST `export` | 按当前查询条件导出 Excel |
 
-| 方法 | 路径 | 用途 |
+### 4.2 角色
+
+#### 业务描述
+
+角色把一组菜单权限和一个数据范围交给用户。用户的功能权限是其全部启用角色的并集。
+
+#### 业务规则
+
+- 名称必填。编码全局唯一：字母开头，2–64 位，仅字母、数字、下划线。
+- `data_scope` 只取 `1`、`2`、`3`，含义见全局约定。默认 `1`。
+- 授权接口一次提交角色 ID 列表、菜单 ID 列表和 `data_scope`，整体替换这些角色的菜单，并写入数据范围。角色和菜单都必须存在。
+- 仍关联未删除用户的角色不能删除，须先解除用户关联。停用用户也算有效关联。批量删除时任一角色不满足则整批拒绝。
+- 可以批量启停，并导出 Excel。选项接口只返回可用角色。
+
+#### 数据模型
+
+**sys_role 角色表**（含用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/system/dept/tree`、`/system/dept/detail/{id}` | 部门树与详情 |
-| POST / PUT / DELETE / PATCH | `/system/dept/create`、`/system/dept/update/{id}`、`/system/dept/delete`、`/system/dept/status/batch` | 部门维护 |
-| GET | `/system/position/list`、`/system/position/detail/{id}`、`/system/position/options` | 岗位查询 |
-| POST / PUT / DELETE / PATCH | `/system/position/create`、`/system/position/update/{id}`、`/system/position/delete`、`/system/position/status/batch` | 岗位维护 |
-| POST | `/system/position/export` | 导出岗位 |
+| name | varchar(64) | 角色名称 |
+| code | varchar(64) unique | 角色编码 |
+| order | int | 显示排序，默认 999 |
+| status | int | `0` 启用，`1` 停用 |
+| data_scope | int | `1` 仅本人，`2` 本部门及以下，`3` 全部。默认 1 |
+| description | text | 备注 |
 
-### 3.5 字典与系统参数
+**sys_role_menus**：`role_id` + `menu_id`。
 
-**业务目标**：维护页面选项和系统配置，并通过 Redis 提供快速读取。
+**sys_role_depts**：`role_id` + `dept_id`。保存授权时清空，不参与数据范围。
 
-**数据模型**：`sys_dict_type` 记录名称、唯一类型编码和状态；`sys_dict_data` 记录类型、标签、值、排序、默认项、展示样式和状态；`sys_param` 记录参数名称、键、值、内置标记及状态。
+#### API 接口
 
-**业务规则**：字典类型与条目可分别查询、增删改和批量启停；按字典类型编码读取条目。应用启动时初始化字典缓存。系统参数修改时不允许变更 `config_key`，保存后同步 Redis；参数信息接口从缓存读取。
+前缀 `/system/role`。列表、详情、新增、修改、删除、批量启停使用通用 CRUD。
 
-| 方法 | 路径 | 用途 |
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/system/dict/type/detail/{id}`、`/system/dict/type/list`、`/system/dict/type/optionselect` | 字典类型查询 |
-| POST / PUT / DELETE / PATCH | `/system/dict/type/create`、`/system/dict/type/update/{id}`、`/system/dict/type/delete`、`/system/dict/type/status/batch` | 字典类型维护 |
-| GET | `/system/dict/data/detail/{id}`、`/system/dict/data/list`、`/system/dict/data/info/{dict_type}` | 字典条目查询 |
-| POST / PUT / DELETE / PATCH | `/system/dict/data/create`、`/system/dict/data/update/{id}`、`/system/dict/data/delete`、`/system/dict/data/status/batch` | 字典条目维护 |
-| GET / PUT | `/system/param/info`、`/system/param/update/{id}` | 读取和修改系统参数 |
+| GET | `/system/role/options` | 可用角色下拉 |
+| PUT | `/system/role/permission` | 替换菜单并保存数据范围。权限标识 `module_system:role:permission` |
+| POST | `/system/role/export` | 导出角色 |
 
-### 3.6 公告与通知流
+### 4.3 菜单
 
-**业务目标**：发布和维护通知公告，并在变更时提示在线客户端刷新。
+#### 业务描述
 
-**数据模型**：`sys_notice` 包含 `notice_title`、`notice_type`（`1=通知`、`2=公告`）、`notice_content`、`status`、备注和审计字段。状态字段定义为 `0=草稿`、`1=已发布`、`2=已归档`。
+目录、菜单、按钮和外链都是权限节点。管理端用菜单节点注册路由，用按钮节点上的 `permission` 控制接口和页面操作。
 
-**业务规则**：标题不能为空，内容会做 HTML 清理；标题重复时创建或修改被拒绝。公告列表支持条件查询，创建、更新、启停时通过 SSE 广播 `notice_update` 轻量事件，客户端收到后重新获取列表。`/available` 当前按 `status=0` 返回最多 10 条。
+#### 业务规则
 
-| 方法 | 路径 | 用途 |
+- 类型 `type`：`1` 目录，`2` 菜单，`3` 按钮，`4` 外链。
+- 目录下可以放目录、菜单或外链。菜单下可以放按钮。子节点的可见范围与父节点一致。
+- `permission` 是鉴权键。`route_name`、`route_path`、`component_path` 给前端注册路由。`link` 仅外链使用。`is_iframe` 表示内嵌打开。
+- `keep_alive` 为真时标签页缓存该页面。`hidden` 为真时不出现在菜单。`affix` 固定标签。`scope` 为 `web`、`desktop` 或 `app`。
+- `status = 1` 的节点不参与菜单展示，也不参与鉴权。
+- 删除菜单时连同后代一起处理。批量启用时联动祖先；批量停用时联动子孙。
+- `order` 越小越靠前（默认 999）。
+
+#### 数据模型
+
+**sys_menu 菜单表**（无用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/system/notice/list`、`/system/notice/detail/{id}`、`/system/notice/available` | 公告查询 |
-| POST / PUT / DELETE / PATCH | `/system/notice/create`、`/system/notice/update/{id}`、`/system/notice/delete`、`/system/notice/status/batch` | 公告维护 |
+| name | varchar(64) | 菜单名称 |
+| type | int | `1` 目录，`2` 菜单，`3` 按钮，`4` 外链 |
+| order | int | 排序 |
+| permission | varchar(100) | 权限标识 |
+| icon | varchar(50) | 图标 |
+| route_name | varchar(100) | 路由名称 |
+| route_path | varchar(200) | 路由路径 |
+| component_path | varchar(200) | 前端组件路径 |
+| redirect | varchar(200) | 重定向 |
+| hidden | boolean | 是否隐藏 |
+| keep_alive | boolean | 是否缓存，默认是 |
+| always_show | boolean | 是否始终显示 |
+| title | varchar(50) | 标题 |
+| params | json | 路由参数 |
+| affix | boolean | 是否固定标签 |
+| link | varchar(500) | 外链地址 |
+| is_iframe | boolean | 是否 iframe |
+| is_hide_tab | boolean | 是否隐藏标签页 |
+| active_path | varchar(200) | 高亮用的上级路径 |
+| show_badge | boolean | 是否显示红点 |
+| show_text_badge | varchar(20) | 文字角标 |
+| scope | varchar(20) | `web` / `desktop` / `app`，默认 `web` |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+| parent_id | int | 父节点，空为顶级 |
+
+#### API 接口
+
+前缀 `/system/menu`。没有分页列表，用树代替。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/menu/tree` | 菜单树 |
+| GET | `/system/menu/detail/{id}` | 详情 |
+| POST / PUT / DELETE / PATCH | `create`、`update/{id}`、`delete`、`status/batch` | 通用维护。删除含后代；启停联动父子 |
+
+### 4.4 部门
+
+#### 业务描述
+
+部门是树形组织。用户的部门数据范围沿这棵树向下展开。
+
+#### 业务规则
+
+- 名称必填。编码全局唯一，规则同角色编码。
+- 存在子部门时不能删除父部门。
+- 批量启用时联动上级，批量停用时联动下级。
+- `parent_id` 为空表示顶级。
+
+#### 数据模型
+
+**sys_dept 部门表**（含用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| name | varchar(64) | 部门名称 |
+| code | varchar(64) unique | 部门编码 |
+| parent_id | int | 上级部门 |
+| order | int | 排序，默认 999 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+
+#### API 接口
+
+前缀 `/system/dept`。用 `tree` 代替分页列表，其余为详情、新增、修改、删除、批量启停。
+
+### 4.5 岗位
+
+#### 业务描述
+
+岗位是独立于部门树的职务目录，只用于给用户打标，不参与数据范围。
+
+#### 业务规则
+
+- 名称必填。编码全局唯一，规则同角色编码。
+- 可按状态取下拉选项，并导出 Excel。
+
+#### 数据模型
+
+**sys_position 岗位表**（含用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| name | varchar(64) | 岗位名称 |
+| code | varchar(64) unique | 岗位编码 |
+| order | int | 排序，默认 1 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+
+#### API 接口
+
+前缀 `/system/position`。列表、详情、新增、修改、删除、批量启停使用通用 CRUD。另有 `GET options` 与 `POST export`。
+
+---
+
+## 5. 配置与内容
+
+### 5.1 字典
+
+#### 业务描述
+
+字典为页面上的下拉、标签和状态色提供选项。类型和条目分开维护，启动时写入 Redis，按类型编码读取。
+
+#### 业务规则
+
+- 类型编码 `dict_type` 全局唯一。
+- 条目通过 `dict_type_id` 归属类型，同时冗余 `dict_type` 编码供查询。
+- 条目可标记默认项，并用 `list_class`、`css_class` 控制表格展示。
+- 类型与条目都可批量启停。
+
+#### 数据模型
+
+**sys_dict_type**（无用户审计）：`dict_name`、唯一 `dict_type`、`status`、`description`。
+
+**sys_dict_data**（无用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| dict_type_id | int | 所属类型，删除类型时级联 |
+| dict_type | varchar(255) | 类型编码冗余 |
+| dict_label | varchar(255) | 显示标签 |
+| dict_value | varchar(255) | 存储值 |
+| dict_sort | int | 排序 |
+| is_default | boolean | 是否默认 |
+| css_class / list_class | varchar(255) | 样式与表格回显 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+
+#### API 接口
+
+类型前缀 `/system/dict/type`，条目前缀 `/system/dict/data`。两边都使用通用 CRUD（含批量启停）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/dict/type/optionselect` | 类型下拉 |
+| GET | `/system/dict/data/info/{dict_type}` | 按类型编码读取条目 |
+
+### 5.2 系统参数
+
+#### 业务描述
+
+用键值保存站点名称、登录页文案、备案、隐私条款和访问控制开关。修改后同步 Redis，读取走缓存。
+
+#### 业务规则
+
+- 修改时不允许改 `config_key`。
+- `config_type = true` 表示系统内置项。
+- `demo_enable`、`ip_white_list`、`ip_black_list` 由请求中间件读取，规则见全局约定。
+
+内置键：
+
+| config_key | 说明 |
+| --- | --- |
+| sys_name / version | 站点名称、对外版本号 |
+| logo_url / favicon / login_bg | 标志、图标、登录背景 |
+| login_title / login_subtitle | 登录页标题与副标题 |
+| copyright / keep_record | 版权、备案号 |
+| help_doc / git_code | 帮助文档、仓库地址 |
+| privacy / clause | 隐私政策、用户条款 |
+| demo_enable | 演示模式，禁止非白名单写操作 |
+| ip_white_list / ip_black_list | IP 白名单、黑名单 |
+| ip_location_enable | 是否解析登录地点 |
+
+#### 数据模型
+
+**sys_param**（无用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| config_name | varchar(64) | 参数名称 |
+| config_key | varchar(500) | 参数键 |
+| config_value | text | 参数值 |
+| config_type | boolean | 是否内置 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
+
+本模块不提供通用新增和删除接口。
+
+#### API 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/param/info` | 从缓存读取参数 |
+| PUT | `/system/param/update/{id}` | 修改参数值并刷新缓存 |
+
+### 5.3 公告
+
+#### 业务描述
+
+发布通知和公告。创建、修改、启停后通过 SSE 通知在线客户端刷新列表。
+
+#### 业务规则
+
+- 标题不能为空，且不能与已有标题重复。内容做 HTML 清理。
+- 类型：`1` 通知，`2` 公告。
+- 状态：`0` 草稿，`1` 已发布，`2` 已归档。这组状态不沿用通用启停语义。
+- 变更时广播 `notice_update`，载荷是轻量事件，客户端自行重新拉取列表。
+- `available` 按 `status = 0` 返回最多 10 条。
+
+#### 数据模型
+
+**sys_notice**（含用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| notice_title | varchar(64) | 标题 |
+| notice_type | varchar(1) | `1` 通知，`2` 公告 |
+| notice_content | text | 正文 |
+| status | int | `0` 草稿，`1` 已发布，`2` 已归档 |
+| description | text | 备注 |
+
+#### API 接口
+
+前缀 `/system/notice`。列表、详情、新增、修改、删除、批量改状态使用通用 CRUD。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/notice/available` | 返回 `status = 0` 的公告，最多 10 条 |
 | GET | `/system/notice/stream` | 公告变更 SSE |
 
-### 3.7 工单与评论
+### 5.4 版本
 
-**业务目标**：收集建议和缺陷反馈，并支持指派、处理、回复和讨论。
+#### 业务描述
 
-**数据模型**：`sys_ticket` 包含标题、类型（`suggestion`/`bug`/`optimize`/`other`）、内容、摘要、图片、处理人、回复及状态；`sys_ticket_comment` 包含工单 ID 和评论内容。工单状态为 `0=待处理`、`1=处理中`、`2=已完成`、`3=已关闭`。
+记录产品版本说明，并可标记该版本是否要求用户重新登录。
 
-**状态规则**：
+#### 业务规则
+
+- 版本号唯一。
+- 状态：`0` 草稿，`1` 已发布，`2` 已回滚。
+- 已发布列表只返回 `status = 1`。
+- `require_re_login` 为真时，客户端应结束当前会话。
+
+#### 数据模型
+
+**sys_version**（含用户审计）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| version | varchar(32) unique | 版本号 |
+| title | varchar(200) | 标题 |
+| date | varchar(50) | 发布日期 |
+| content | text | 富文本说明 |
+| sort | int | 排序 |
+| status | int | `0` 草稿，`1` 已发布，`2` 已回滚 |
+| require_re_login | boolean | 是否要求重新登录 |
+| description | varchar(500) | 备注 |
+
+#### API 接口
+
+前缀 `/system/versions`。列表、详情、新增、修改、删除使用通用 CRUD。没有批量启停，状态走单独接口。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/versions/published` | 已发布版本。开放查询 |
+| PUT | `/system/versions/{id}/status` | 修改状态 |
+
+---
+
+## 6. 工单
+
+### 6.1 业务描述
+
+用户提交建议、缺陷、优化或其他反馈。管理员指派处理人、回复、流转状态，参与人可以评论。
+
+### 6.2 业务规则
+
+- 标题必填。类型：`suggestion` 建议，`bug` 缺陷，`optimize` 优化，`other` 其他。默认建议。
+- 正文为富文本，`summary` 存纯文本摘要，`images` 存图片 URL 的 JSON 数组。
+- 状态：`0` 待处理，`1` 处理中，`2` 已完成，`3` 已关闭。
 
 | 原状态 | 目标状态 | 可操作人 |
 | --- | --- | --- |
@@ -186,189 +556,428 @@ FastapiAdmin 为一个管理后台提供账号登录、组织与权限管理、�
 | 已完成 | 已关闭 | 创建人、超级管理员 |
 | 已关闭 | 待处理 | 超级管理员 |
 
-**其他规则**：更改处理人时先校验目标用户可查询；批量更新会逐条校验状态流转。状态统计分别计算待处理、处理中、已完成。评论创建前确认工单存在。
+- 更改处理人时，目标用户必须可被当前操作者查询到。
+- 批量更新逐条校验状态流转，一条不合法则该条失败。
+- 统计分别计数待处理、处理中、已完成。
+- 评论前工单必须存在。
 
-| 方法 | 路径 | 用途 |
+### 6.3 数据模型
+
+**sys_ticket**（含用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/system/ticket/stats`、`/system/ticket/list`、`/system/ticket/detail/{id}` | 统计、分页及详情 |
-| POST / PUT / DELETE | `/system/ticket/create`、`/system/ticket/update/{id}`、`/system/ticket/batch`、`/system/ticket/delete` | 创建、更新、批量状态操作和删除 |
-| POST | `/system/ticket/export` | 导出工单 |
+| title | varchar(200) | 标题 |
+| ticket_type | varchar(20) | 类型 |
+| ticket_content | text | 富文本正文 |
+| summary | text | 纯文本摘要 |
+| images | text | 图片 URL JSON |
+| reply | text | 处理回复 |
+| assigned_id | int | 处理人 |
+| status | int | `0`–`3`，见上表 |
+| description | text | 备注 |
+
+**sys_ticket_comment**（含用户审计）：`ticket_id`、`content`。删除工单时级联删除评论。
+
+### 6.4 API 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/system/ticket/stats` | 待处理、处理中、已完成计数 |
+| GET | `/system/ticket/list`、`/system/ticket/detail/{id}` | 分页与详情 |
+| POST / PUT / DELETE | `/system/ticket/create`、`update/{id}`、`delete` | 新增、修改、删除 |
+| PUT | `/system/ticket/batch` | 批量流转状态 |
+| POST | `/system/ticket/export` | 导出 |
 | GET / POST | `/system/ticket/{ticket_id}/comments` | 评论分页与新增 |
 
-### 3.8 版本和日志
+---
 
-**版本管理**：`sys_version` 记录唯一版本号、标题、日期、内容、排序、状态（`0=草稿`、`1=已发布`、`2=已回滚`）及是否要求重新登录。后台可分页、查看、增删改和修改状态；已发布列表接口按 `status=1` 返回。
+## 7. 日志
 
-**日志管理**：`sys_login_log` 记录成功/失败及 IP、地点、客户端信息；`sys_operation_log` 记录请求路径、方法、请求内容、响应、耗时与操作人。后台可查询和删除登录日志，查询、删除、导出操作日志。
+### 7.1 业务描述
 
-| 方法 | 路径 | 用途 |
+登录日志记录每次登录成败。操作日志记录后台写操作的请求与响应，供审计检索和导出。
+
+### 7.2 业务规则
+
+- 登录状态：`1` 成功，`2` 失败。与通用启停的 `0/1` 不同。
+- 操作状态：`0` 成功，`1` 失败。
+- 操作日志保存路径、方法、请求体、响应体、耗时、IP 和操作人用户名。大文本列随数据库选择（MySQL 用 LONGTEXT）。
+- 两类日志都可以查询和删除。操作日志可以导出。日志表没有用户审计字段，操作人用 `username` 快照。
+
+### 7.3 数据模型
+
+**sys_login_log**（无用户审计）：`username`、`status`、`login_ip`、`login_location`、`request_os`、`request_browser`、`msg`、`description`。
+
+**sys_operation_log**（无用户审计）：`username`、`status`、`request_path`、`request_method`、`request_payload`、`response_code`、`response_json`、`process_time`、`request_ip`、`description`。
+
+### 7.4 API 接口
+
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/system/versions/list`、`/system/versions/detail/{id}`、`/system/versions/published` | 版本分页、详情与已发布列表 |
-| POST / PUT / DELETE | `/system/versions/create`、`/system/versions/update/{id}`、`/system/versions/delete`、`/system/versions/{id}/status` | 版本维护与状态变更 |
-| GET / DELETE | `/system/log/login/list`、`/system/log/login/detail/{id}`、`/system/log/login/delete` | 登录日志查询和删除 |
-| GET / DELETE / POST | `/system/log/operation/list`、`/system/log/operation/detail/{id}`、`/system/log/operation/delete`、`/system/log/operation/export` | 操作日志查询、删除和导出 |
+| GET / DELETE | `/system/log/login/list`、`detail/{id}`、`delete` | 登录日志查询与删除 |
+| GET / DELETE / POST | `/system/log/operation/list`、`detail/{id}`、`delete`、`export` | 操作日志查询、删除与导出 |
 
-## 4. 定时任务与存储业务
+---
 
-### 4.1 定时任务节点和执行日志
+## 8. 定时任务
 
-**业务目标**：维护可手动或按计划执行的任务节点，查看执行结果，并对调度器和任务进行运维控制。
+### 8.1 业务描述
 
-**数据模型**：`task_cornjob_node` 保存名称、唯一编码、处理函数、触发方式及参数、执行器、任务存储器、起止时间、状态；`task_corn_job` 保存任务 ID、触发方式、执行状态、结果和错误。执行状态为 `0=待执行`、`1=执行中`、`2=成功`、`3=失败`、`4=超时`、`5=取消`。
+管理员维护可按计划或手动运行的任务节点，查看执行日志，并对调度器做启停。节点描述「做什么、何时做」；执行日志描述「某一次跑得怎样」。
 
-**业务规则**：
+### 8.2 业务规则
 
-1. 节点的 `func` 必填。处理函数可用 `builtin:` 内置处理器标识；原始代码块执行受 `SCHEDULER_ALLOW_CODE_EXEC` 配置控制。
-2. 触发器可选 `cron`、`interval`、`date`；设置触发器时必须填写触发参数。留空可只保存节点并通过手动执行接口运行。
-3. 节点可设置合并执行和最大并发实例数；列表响应可展示下一次、最近一次运行时间及不可调度原因。
-4. 调度器接口支持启动、暂停、恢复、关闭、查看任务清单和控制台；任务接口支持暂停、恢复、立即运行、修改、移除。执行日志支持分页、详情和删除。
+- 节点编码唯一。`func` 为处理函数：可以是 `builtin:` 内置处理器，也可以是代码块。代码块能否执行由 `SCHEDULER_ALLOW_CODE_EXEC` 决定。
+- 触发器：`cron`、`interval`、`date`。填写了触发器就必须填写触发参数。留空则只保存节点，通过手动执行接口运行。
+- `coalesce` 合并错过的执行。`max_instances` 限制并发实例，默认 1。
+- 节点状态沿用 `0` 启用、`1` 停用。
+- 执行状态：`0` 待执行，`1` 执行中，`2` 成功，`3` 失败，`4` 超时，`5` 取消。
+- 列表可以带出下一次运行时间、最近一次运行时间，以及当前不能调度的原因。
+- 调度器可以启动、暂停、恢复、关闭、清空任务和查看控制台。单个任务可以暂停、恢复、立即运行、修改触发参数、移除。
 
-| 方法 | 路径 | 用途 |
+### 8.3 数据模型
+
+**task_cornjob_node 任务节点**（含用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/task/cronjob/node/options`、`/task/cronjob/node/list`、`/task/cronjob/node/detail/{id}` | 节点选项、分页及详情 |
-| POST / PUT / DELETE / PATCH | `/task/cronjob/node/create`、`/task/cronjob/node/update/{id}`、`/task/cronjob/node/delete`、`/task/cronjob/node/clear`、`/task/cronjob/node/status/batch` | 节点维护 |
-| POST | `/task/cronjob/node/execute/{id}` | 手动执行节点 |
-| GET | `/task/cronjob/job/scheduler/status`、`/task/cronjob/job/scheduler/jobs`、`/task/cronjob/job/scheduler/console` | 调度器状态、任务和控制台 |
-| POST / DELETE | `/task/cronjob/job/scheduler/start`、`/task/cronjob/job/scheduler/pause`、`/task/cronjob/job/scheduler/resume`、`/task/cronjob/job/scheduler/shutdown`、`/task/cronjob/job/scheduler/jobs/clear` | 控制调度器 |
-| POST / PUT / DELETE | `/task/cronjob/job/task/pause/{job_id}`、`/task/cronjob/job/task/resume/{job_id}`、`/task/cronjob/job/task/run/{job_id}`、`/task/cronjob/job/task/modify/{job_id}`、`/task/cronjob/job/task/remove/{job_id}` | 控制单个任务 |
-| GET / DELETE | `/task/cronjob/job/log/list`、`/task/cronjob/job/log/detail/{id}`、`/task/cronjob/job/log/delete` | 执行日志 |
+| name | varchar(64) | 名称 |
+| code | varchar(32) unique | 编码 |
+| func | text | 处理函数或代码块 |
+| args / kwargs | text | 位置参数、关键字参数 |
+| trigger | varchar(64) | `cron` / `interval` / `date`，可空 |
+| trigger_args | text | 触发参数 |
+| jobstore | varchar(64) | 任务存储，默认 `default` |
+| executor | varchar(64) | 执行器，默认 `threadpool` |
+| coalesce | boolean | 是否合并执行 |
+| max_instances | int | 最大并发实例 |
+| start_date / end_date | varchar(64) | 生效区间 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
 
-### 4.2 存储源与文件浏览
+**task_corn_job 执行日志**（无用户审计）
 
-**业务目标**：用统一方式管理本地、文件服务器和对象存储中的文件。
-
-**数据模型**：`task_storage_node` 保存名称、协议、连接地址、端口、账号、加密保存的凭据、桶、区域、路径前缀、分片配置、默认标记和状态。支持 `local`、`ftp`、`ftps`、`sftp`、`s3`、`obs`、`oss`、`cos`。
-
-**业务规则**：
-
-1. 创建或修改存储源时按协议校验连接字段；可用保存的源或临时配置测试连接。调用方未指定源时优先选默认启用源，再选其他启用源。
-2. 对象存储需提供桶信息；各协议的 endpoint、region 等必填条件由配置校验决定。连接密码对外响应不以明文提供。
-3. 文件浏览支持列表、桶列表、上传、文件下载、目录打包下载、删除、复制/移动、重命名、创建目录和分享链接。操作必须基于可用存储源和有效路径。
-
-| 方法 | 路径 | 用途 |
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET | `/task/storage/node/protocols`、`/task/storage/node/advanced-fields` | 协议及高级配置定义 |
-| GET | `/task/storage/node/page`、`/task/storage/node/list`、`/task/storage/node/detail/{id}` | 存储源查询 |
-| POST / PUT / DELETE | `/task/storage/node/create`、`/task/storage/node/update/{id}`、`/task/storage/node/delete` | 存储源维护 |
-| POST | `/task/storage/node/test`、`/task/storage/node/test/{id}` | 测试临时配置或已有源 |
-| GET | `/task/storage/browse/list`、`/task/storage/browse/buckets` | 文件与桶列表 |
-| POST | `/task/storage/browse/upload`、`/task/storage/browse/download`、`/task/storage/browse/download_dir` | 上传、下载文件或 ZIP 目录 |
-| DELETE / POST / PUT | `/task/storage/browse/delete`、`/task/storage/browse/copy`、`/task/storage/browse/rename`、`/task/storage/browse/mkdir`、`/task/storage/browse/share` | 文件及目录操作 |
+| job_id | varchar(64) | 调度器中的任务 ID |
+| job_name | varchar(128) | 任务名称 |
+| trigger_type | varchar(32) | `cron` / `interval` / `date` / `manual` |
+| next_run_time | varchar(64) | 下次执行时间 |
+| job_state | text | 任务状态快照 |
+| result / error | text | 结果与错误 |
+| status | int | `0`–`5`，见上 |
+| description | text | 备注 |
 
-### 4.3 文件传输任务
+### 8.4 API 接口
 
-**业务目标**：将本地上传文件或远端文件传输至一个或多个目标存储源，并展示实时进度。
+节点前缀 `/task/cronjob/node`。列表、详情、新增、修改、删除、批量启停使用通用 CRUD。
 
-**数据模型**：`task_storage_transfer` 保存任务名称、源类型、源地址、任务类型、状态、大小、速度、进度和错误；`task_storage_transfer_step` 保存每个目标步骤的源与目标、传输方式和步骤进度。任务类型为 `parallel`（多目标）或 `chain`（链式）；状态为 `pending`、`running`、`success`、`failed`、`canceled`。
-
-**业务规则**：
-
-1. 远端任务指定源存储源与路径；本地任务先上传文件到服务端临时文件。至少指定一个目标，目标必须存在且启用。
-2. 并行模式的每个步骤都读取原始源；链式模式的后一步读取前一步目标。可选流式或分片传输及分片参数。
-3. 创建任务先保存任务和步骤，在请求事务提交后启动后台传输。列表与详情返回步骤和进度；取消、删除按当前任务状态执行；SSE 推送进度事件。
-
-| 方法 | 路径 | 用途 |
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/task/storage/transfer/task`、`/task/storage/transfer/task/upload` | 创建远端或本地源传输任务 |
-| GET | `/task/storage/transfer/task/page`、`/task/storage/transfer/task/{id}` | 分页及详情 |
-| POST / DELETE | `/task/storage/transfer/task/{id}/cancel`、`/task/storage/transfer/task` | 取消和删除任务 |
-| GET | `/task/storage/transfer/stream` | 传输进度 SSE |
+| GET | `/task/cronjob/node/options` | 节点下拉 |
+| POST | `/task/cronjob/node/execute/{id}` | 手动执行 |
+| POST | `/task/cronjob/node/clear` | 清空节点 |
 
-### 4.4 存储传输流程
+调度器与执行日志：
 
-**业务目标**：保存可重复执行的存储源连线，执行时批量创建传输任务。
-
-**数据模型**：`task_storage_workflow` 保存流程名称、类型、画布图和状态；节点表保存存储源与默认路径，连线表保存源/目标节点、启用标记、传输方式和分片参数。
-
-**业务规则**：流程创建或编辑时解析画布节点与连线并落库。执行时读取启用的连线，按连线生成传输计划；可在请求中覆盖源路径。没有启用连线、节点无效、源与目标相同或缺少路径时拒绝执行。执行结果返回创建的传输任务 ID 列表。
-
-| 方法 | 路径 | 用途 |
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/task/storage/workflow/page`、`/task/storage/workflow/list`、`/task/storage/workflow/detail/{id}` | 流程查询 |
-| POST / PUT / DELETE | `/task/storage/workflow/create`、`/task/storage/workflow/update/{id}`、`/task/storage/workflow/delete` | 流程维护 |
-| POST | `/task/storage/workflow/execute/{id}` | 执行流程 |
+| GET | `/task/cronjob/job/scheduler/status` | 调度器状态 |
+| GET | `/task/cronjob/job/scheduler/jobs` | 当前任务清单 |
+| GET | `/task/cronjob/job/scheduler/console` | 控制台 |
+| POST | `.../scheduler/start`、`pause`、`resume`、`shutdown` | 启停调度器 |
+| DELETE | `.../scheduler/jobs/clear` | 清空调度任务 |
+| POST / PUT / DELETE | `.../task/pause/{job_id}`、`resume`、`run`、`modify`、`remove` | 控制单个任务 |
+| GET / DELETE | `/task/cronjob/job/log/list`、`detail/{id}`、`delete` | 执行日志 |
 
-## 5. 智能、开发与公共功能
+---
 
-### 5.1 AI 聊天与模型配置
+## 9. 存储与传输
 
-**业务目标**：提供用户聊天会话，以及可切换的个人模型配置。
+### 9.1 存储源
 
-**主要数据**：会话和消息由 Agno 会话存储管理；用户模型配置存于 Redis。会话按当前用户读取和修改。模型配置包括名称、模型、服务地址及访问凭据等参数。
+#### 业务描述
 
-**业务规则**：用户只能管理自己的会话，可创建、分页查询、查看、改名和删除。HTTP 接口返回完整的非流式回答及会话 ID；WebSocket 用于实时对话。对话优先使用用户已激活的模型配置；模型配置可新增、更新、删除和激活。实际回复依赖已配置的模型服务。
+用统一配置连接本地磁盘、FTP/FTPS/SFTP 和对象存储，供浏览、传输和流程复用。
 
-| 方法 | 路径 | 用途 |
+#### 业务规则
+
+- 协议：`local`、`ftp`、`ftps`、`sftp`、`s3`、`obs`、`oss`、`cos`。名称唯一。
+- 创建和修改时按协议校验连接字段。对象存储需要桶；endpoint、region 等是否必填由该协议的校验决定。
+- 密码和密钥加密保存，响应不回明文。
+- 可用已保存的源或一份临时配置测试连接。
+- 调用方未指定源时，先用默认且启用的源，否则用其他启用源。
+- 同一时刻只应有一个默认源。状态 `0` 启用，`1` 停用。
+
+#### 数据模型
+
+**task_storage_node**（含用户审计）
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| GET / POST / PUT / DELETE | `/ai/chat/list`、`/ai/chat/detail/{session_id}`、`/ai/chat/create`、`/ai/chat/update/{session_id}`、`/ai/chat/delete` | 会话维护 |
-| POST / WS | `/ai/chat/ai-chat`、`/ai/chat/ws` | 非流式及 WebSocket 对话 |
-| GET / POST / PUT / DELETE | `/ai/chat/model`、`/ai/chat/model/{config_id}`、`/ai/chat/model/{config_id}/activate` | 模型配置管理与激活 |
+| name | varchar(64) unique | 名称 |
+| protocol | varchar(16) | 协议 |
+| host / port | varchar / int | 主机与端口。对象存储可不填 host |
+| username / password | varchar / text | 账号与加密后的密钥 |
+| bucket / endpoint / region | varchar | 对象存储桶、接入点、区域 |
+| path_prefix | varchar(255) | 路径前缀 |
+| scheme | varchar(16) | 对象存储 `http` 或 `https`，默认 https |
+| is_secure / implicit_tls / encrypt_type | | FTPS 的 TLS 方式。`encrypt_type`：`0` 明文，`1` 显式 TLS 可用时，`2` 要求显式 TLS，`3` 隐式 TLS |
+| connection_mode | int | `0` 默认，`1` 主动，`2` 被动 |
+| encoding | varchar(16) | 默认 UTF-8 |
+| multipart_part_size | int | 分片大小，MB，默认 50 |
+| multipart_concurrency | int | 分片并发，默认 6 |
+| multipart_memory_budget | int | 分片内存预算，MB，默认 512 |
+| advanced_config | json | 按协议解析的 SDK 高级项 |
+| is_default | boolean | 是否默认源 |
+| status | int | `0` 启用，`1` 停用 |
+| description | text | 备注 |
 
-### 5.2 代码生成
+#### API 接口
 
-**业务目标**：从数据库表生成管理功能代码，并维护生成配置。
-
-**数据模型**：`gen_table` 保存表名、类名、生成包/模块/业务名、生成路径及主子表配置；`gen_table_column` 保存字段名、类型、显示、查询和表单配置。
-
-**业务规则**：从现有数据库导入表和列后可编辑生成参数；可预览代码、输出单表代码或批量下载；同步数据库前可获取差异预览。创建表结构接口接收 SQL，并由代码生成服务执行校验和落库。
-
-| 方法 | 路径 | 用途 |
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/generator/gencode/list`、`/generator/gencode/db/list`、`/generator/gencode/detail/{table_id}` | 生成配置与数据库表查询 |
-| POST / PUT / DELETE | `/generator/gencode/import`、`/generator/gencode/create`、`/generator/gencode/update/{table_id}`、`/generator/gencode/delete` | 导入、建表和编辑配置 |
-| GET | `/generator/gencode/preview/{table_id}`、`/generator/gencode/sync_db/preview/{table_name}` | 代码预览与数据库差异预览 |
-| POST / PATCH | `/generator/gencode/output/{table_name}`、`/generator/gencode/batch/output`、`/generator/gencode/sync_db/{table_name}` | 单表输出、批量下载与数据库同步 |
+| GET | `/task/storage/node/protocols`、`advanced-fields` | 协议列表与高级字段定义 |
+| GET | `page`、`list`、`detail/{id}` | 分页、简表、详情 |
+| POST / PUT / DELETE | `create`、`update/{id}`、`delete` | 维护 |
+| POST | `test`、`test/{id}` | 测试临时配置或已有源 |
 
-### 5.3 公共文件与示例扩展
+### 9.2 文件浏览
 
-**公共文件**：`/common/file/upload` 上传文件并返回文件名、映射路径和访问地址；`/common/file/download` 下载受控文件。两者分别需要上传和下载权限。
+#### 业务描述
 
-**示例扩展**：启动时动态发现 `app/plugin/module_*/**/controller.py` 中的路由。仓库内 `module_example/demo` 提供示例记录的详情、分页、增删改、启停、Excel 导入导出和模板下载，用于验证插件开发约定。
+在已启用的存储源上列目录、上传、下载、打包目录、删除、复制或移动、重命名、建目录和生成分享链接。
 
-| 方法 | 路径 | 用途 |
+#### 业务规则
+
+- 操作必须指定可用存储源和合法路径。
+- 对象存储可以列桶。
+- 目录下载打包为 ZIP。
+- 连接失败或路径无效时拒绝操作，不部分提交。
+
+#### 数据模型
+
+不单独建表，读写目标存储源。
+
+#### API 接口
+
+前缀 `/task/storage/browse`。
+
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET / POST / PUT / DELETE / PATCH | `/example/demo/list`、`/example/demo/detail/{id}`、`/example/demo/create`、`/example/demo/update/{id}`、`/example/demo/delete`、`/example/demo/status/batch` | 示例数据管理 |
-| POST | `/example/demo/export`、`/example/demo/import`、`/example/demo/download/template` | 示例数据 Excel 处理 |
+| GET | `list`、`buckets` | 文件列表、桶列表 |
+| POST | `upload`、`download`、`download_dir` | 上传、下载文件、下载目录 ZIP |
+| DELETE | `delete` | 删除 |
+| POST | `copy`、`share` | 复制或移动、分享链接 |
+| PUT | `rename`、`mkdir` | 重命名、创建目录 |
 
-## 6. 监控与运维
+### 9.3 传输任务
 
-### 6.1 健康检查和服务器状态
+#### 业务描述
 
-健康检查执行数据库 `SELECT 1` 与 Redis `PING`，返回服务名、版本、环境及连接状态；SSE 提供持续状态流。服务器信息接口返回 CPU、内存、磁盘、系统和 Python 运行信息。
+把本地上传的文件或远端路径传到一个或多个目标存储源，并推送进度。
 
-| 方法 | 路径 | 用途 |
+#### 业务规则
+
+- 任务类型：`parallel` 每个目标都读原始源；`chain` 后一步读前一步的目标。
+- 源类型：`remote` 指定源存储源和路径；`local` 先把文件收到服务端临时文件。
+- 至少一个目标，且目标源存在并启用。源与目标不能是同一位置。
+- 传输方式：`stream` 流式，`multipart` 分片。分片大小和并发可覆盖存储源默认值。留空则用存储源配置。
+- 状态：`pending`、`running`、`success`、`failed`、`canceled`。
+- 先落库任务和步骤，等请求事务提交后再启动后台传输。取消和删除受当前状态约束。
+- SSE 推送进度，不替代列表查询。
+
+#### 数据模型
+
+**task_storage_transfer**（含用户审计）：`name`、`task_type`、`source_type`、`source_id`、`source_path`、`source_name`、`source_size`、`status`、`total_size`、`transferred_size`、`progress`（0–100）、`speed`（字节/秒）、`error_msg`、`started_at`、`finished_at`。
+
+**task_storage_transfer_step**（无用户审计）：`task_id`、`step_order`（从 0）、`source_id`、`source_path`、`target_id`、`target_path`、`transfer_mode`、`multipart_part_size`、`multipart_concurrency`，以及与任务相同的状态、进度、速度、字节数和时间字段。删除任务时级联删除步骤。
+
+#### API 接口
+
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/monitor/health/check`、`/monitor/health/stream` | 单次健康检查、健康状态 SSE |
-| GET | `/monitor/server/info` | 服务器资源信息 |
+| POST | `/task/storage/transfer/task` | 创建远端源任务 |
+| POST | `/task/storage/transfer/task/upload` | 上传本地文件并创建任务 |
+| GET | `task/page`、`task/{id}` | 分页与详情（含步骤） |
+| POST | `task/{id}/cancel` | 取消 |
+| DELETE | `task` | 删除 |
+| GET | `/task/storage/transfer/stream` | 进度 SSE |
 
-### 6.2 在线会话、缓存和统计
+### 9.4 传输流程
 
-在线会话从 Redis 的会话令牌读取，可按名称、IP、登录地点过滤；可查询本人会话、强制下线指定会话或清空在线会话。缓存监控可查看 Redis 信息、缓存名称、键和值，并清理指定缓存或所有缓存。基础统计提供在线人数、用户数、近期登录等指标。
+#### 业务描述
 
-| 方法 | 路径 | 用途 |
+把存储源画成可重复执行的连线。执行时按启用的连线批量创建传输任务。
+
+#### 业务规则
+
+- 类型 `parallel` 或 `chain`，默认并行。
+- `graph` 只存画布布局（位置、样式）。业务配置在节点表和连线表，回显时再组装，避免两份数据不一致。
+- 节点绑定一个存储源和默认路径。连线的目标路径取目标节点的默认路径，连线本身不再写路径。
+- 执行时只跑 `enabled = true` 的连线。没有启用连线、节点无效、源与目标相同或缺少路径时拒绝执行。
+- 请求里可以覆盖源路径。成功时返回新建的传输任务 ID 列表。
+- 流程状态 `0` 启用，`1` 停用。
+
+#### 数据模型
+
+**task_storage_workflow**（含用户审计）：`name`、`task_type`、`graph`、`status`、`description`。
+
+**task_storage_workflow_node**（含用户审计）：`flow_id`、`node_key`、`source_id`、`source_path`。
+
+**task_storage_workflow_edge**（含用户审计）：`flow_id`、`edge_key`、`source_node_key`、`target_node_key`、`enabled`、`transfer_mode`、`multipart_part_size`、`multipart_concurrency`。
+
+#### API 接口
+
+前缀 `/task/storage/workflow`。分页、简表、详情、新增、修改、删除使用通用 CRUD。
+
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/monitor/online/list`、`/monitor/online/current`、`/monitor/online/stats` | 在线会话与基础统计 |
-| DELETE | `/monitor/online/delete`、`/monitor/online/clear` | 强制下线与清空会话 |
-| GET | `/monitor/cache/info`、`/monitor/cache/get/names`、`/monitor/cache/get/keys/{cache_name}`、`/monitor/cache/get/value/{cache_name}/{cache_key}` | 缓存查询 |
-| DELETE | `/monitor/cache/delete/name/{cache_name}`、`/monitor/cache/delete/key/{cache_key}`、`/monitor/cache/clear` | 缓存清理 |
+| POST | `/task/storage/workflow/execute/{id}` | 按启用连线创建传输任务 |
 
-## 7. 数据对象索引
+---
 
-| 领域 | 持久化对象 | 关系或用途 |
+## 10. AI 对话
+
+### 10.1 业务描述
+
+用户维护自己的聊天会话，并保存可切换的个人模型配置。回复来自用户已激活的模型服务。
+
+### 10.2 业务规则
+
+- 会话和消息按当前用户隔离。用户只能查看、改名和删除自己的会话。
+- HTTP 对话返回完整的非流式回答和会话 ID。WebSocket 用于实时对话。
+- 模型配置包括名称、模型、服务地址和访问凭据，存在 Redis，不落业务表。凭据属于该用户。
+- 同一用户同时只有一个激活配置。未配置或上游不可用时，对话失败并返回错误，不伪造回复。
+
+### 10.3 数据模型
+
+会话与消息由 Agno 会话存储管理。模型配置键为 Redis `ai_model_config`。无本模块业务表。
+
+### 10.4 API 接口
+
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| 账号与组织 | `sys_user`、`sys_role`、`sys_menu`、`sys_dept`、`sys_position` | 用户关联角色、岗位和部门；角色关联菜单。 |
-| 配置与内容 | `sys_dict_type`、`sys_dict_data`、`sys_param`、`sys_notice`、`sys_version` | 字典、参数、公告和版本内容。 |
-| 服务台与审计 | `sys_ticket`、`sys_ticket_comment`、`sys_login_log`、`sys_operation_log` | 工单、评论、登录及操作记录。 |
-| 计划任务 | `task_cornjob_node`、`task_corn_job` | 任务定义与执行日志。 |
-| 存储与传输 | `task_storage_node`、`task_storage_transfer`、`task_storage_transfer_step`、`task_storage_workflow`、`task_storage_workflow_node`、`task_storage_workflow_edge` | 存储连接、传输任务/步骤及可重复执行的流程。 |
-| 开发扩展 | `gen_table`、`gen_table_column`、`example_demo` | 代码生成配置与示例插件数据。 |
-| 非关系型状态 | Redis 会话、验证码、参数/字典缓存、AI 用户模型配置；Agno 聊天会话表 | 认证、缓存和聊天状态。 |
+| GET / POST / PUT / DELETE | `/ai/chat/list`、`create`、`detail/{session_id}`、`update/{session_id}`、`delete` | 会话 |
+| POST | `/ai/chat/ai-chat` | 非流式对话 |
+| WS | `/ai/chat/ws` | WebSocket 对话 |
+| GET / POST / PUT / DELETE | `/ai/chat/model`、`/ai/chat/model/{config_id}` | 模型配置 |
+| POST | `/ai/chat/model/{config_id}/activate` | 激活配置 |
 
-通用业务表采用软删除与审计字段。涉及用户、角色、部门等关联对象时，删除或停用后的影响以对应 Service 的校验和查询过滤规则为准。
+---
 
-## 8. 核对来源
+## 11. 代码生成
 
-- 需求背景：仓库根目录 `REQUIREMENTS.md`。
-- 实际路由：`backend/app/api/v1/routers.py`、各模块 `controller.py`、`backend/app/core/discover.py`。
-- 实际字段和业务规则：各模块 `model.py`、`schema.py`、`service.py`。
-- 通用契约：`backend/app/core/base_schema.py`、`backend/app/core/base_crud.py`、`backend/app/core/permission.py`、`backend/app/core/dependencies.py`。
+### 11.1 业务描述
+
+从当前数据库导入表，或提交建表 SQL，编辑字段在列表、表单、查询中的表现，然后预览并输出管理端代码。
+
+### 11.2 业务规则
+
+- 表名、实体类名、列名、列类型不能为空。
+- 字段可标记主键、自增、可空、唯一，以及是否出现在新增、编辑、列表、查询中。
+- `query_type` 决定查询方式，`html_type` 决定表单组件，`dict_type` 绑定字典。
+- 支持主表关联子表（`sub_table_name`、`sub_table_fk_name`）和挂到指定父菜单（`parent_menu_id`）。
+- 预览不写文件。单表输出写到生成路径；批量输出打包下载。
+- 同步数据库前可以先看差异。创建表接口接收 SQL，由生成服务校验后落库。
+
+### 11.3 数据模型
+
+**gen_table**（含用户审计）：`table_name`、`table_comment`、`class_name`、`package_name`、`module_name`、`business_name`、`function_name`、`sub_table_name`、`sub_table_fk_name`、`parent_menu_id`、`status`、`description`。
+
+**gen_table_column**（含用户审计）：`table_id`、`column_name`、`column_comment`、`column_type`、`column_length`、`column_default`、`is_pk`、`is_increment`、`is_nullable`、`is_unique`、`python_type`、`python_field`、`is_insert`、`is_edit`、`is_list`、`is_query`、`query_type`、`html_type`、`dict_type`、`sort`、`status`、`description`。删除表配置时级联删除列。
+
+### 11.4 API 接口
+
+前缀 `/generator/gencode`。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `list`、`db/list`、`detail/{table_id}` | 已导入配置、库中的表、配置详情 |
+| POST | `import`、`create` | 从库导入、执行建表 SQL |
+| PUT / DELETE | `update/{table_id}`、`delete` | 修改配置、删除配置 |
+| GET | `preview/{table_id}`、`sync_db/preview/{table_name}` | 代码预览、库差异预览 |
+| POST | `output/{table_name}`、`batch/output` | 单表输出、批量下载 |
+| PATCH | `sync_db/{table_name}` | 把配置同步到数据库 |
+
+---
+
+## 12. 监控与公共文件
+
+### 12.1 业务描述
+
+提供健康检查、本机资源、在线会话、Redis 缓存和基础统计，以及受权限控制的公共上传下载。
+
+### 12.2 业务规则
+
+- 健康检查执行数据库 `SELECT 1` 和 Redis `PING`，返回服务名、版本、环境和连接结果。
+- 服务器信息包含 CPU、内存、磁盘、操作系统和 Python 运行信息。
+- 在线会话来自 Redis。可按名称、IP、登录地点过滤，可查看本人会话、强制下线指定会话或清空在线会话。
+- 缓存监控可查看 Redis 信息、缓存名、键和值，并清理指定缓存名、指定键或全部缓存。清理全部缓存需要独立权限。
+- 基础统计包含在线人数、用户数和近期登录等指标。
+- 公共上传返回文件名、映射路径和访问地址。下载按映射路径读取受控文件。上传、下载各自有权限标识。
+
+### 12.3 数据模型
+
+无独立业务表。在线会话结构见 Redis `user_session`：会话 ID、用户 ID、是否超管、用户状态、昵称、用户名、部门、手机、邮箱、性别、头像、权限标识、菜单 ID、IP、地点、操作系统、浏览器、登录时间、登录类型。
+
+### 12.4 API 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/monitor/health/check`、`/monitor/health/stream` | 单次健康检查、状态 SSE |
+| GET | `/monitor/server/info` | 服务器资源 |
+| GET | `/monitor/online/list`、`current`、`stats` | 在线会话、本人会话、基础统计 |
+| DELETE | `/monitor/online/delete`、`clear` | 强制下线、清空会话 |
+| GET | `/monitor/cache/info`、`get/names`、`get/keys/{cache_name}`、`get/value/{cache_name}/{cache_key}` | 缓存查询 |
+| DELETE | `/monitor/cache/delete/name/{cache_name}`、`delete/key/{cache_key}`、`clear` | 缓存清理 |
+| POST / GET | `/common/file/upload`、`/common/file/download` | 上传、下载 |
+
+---
+
+## 13. 示例插件
+
+### 13.1 业务描述
+
+仓库内的示例插件用来验证插件约定：启动时发现 `app/plugin/module_*/**/controller.py` 并注册路由。它不是独立业务。
+
+### 13.2 业务规则
+
+- 示例记录支持详情、分页、增删改、启停，以及 Excel 导入、导出和模板下载。
+- 字段覆盖常用类型，便于对照代码生成和表单组件，不承载产品数据。
+
+### 13.3 数据模型
+
+**example_demo**（含用户审计）：`name`、`status`（`0` 正常，`1` 停用）、`description`，以及可空的 `int_val`、`bigint_val`、`float_val`、`bool_val`、`date_val`、`time_val`、`datetime_val`、`text_val`、`json_val`。
+
+### 13.4 API 接口
+
+前缀 `/example/demo`。列表、详情、新增、修改、删除、批量启停使用通用 CRUD。另有 `POST export`、`import`、`download/template`。
+
+---
+
+## 14. 模块关系
+
+```text
+用户 ──多对多── 角色 ──多对多── 菜单（permission = 鉴权键）
+  │              │
+  │              └── data_scope：1 本人 / 2 本部门及以下 / 3 全部
+  ├── 属于一个部门（部门树决定范围 2）
+  ├── 多对多岗位（不参与数据范围）
+  ├── 产生登录日志、操作日志
+  ├── 提交工单，并可被指派为处理人
+  └── 拥有自己的 AI 会话与模型配置（Redis）
+
+字典类型 ──一对多── 字典条目
+系统参数 ──写入 Redis── 站点文案、演示模式、IP 黑白名单
+
+任务节点 ──调度── 执行日志
+存储源 ──被使用于── 文件浏览、传输步骤、流程节点
+传输流程 ──执行时创建── 传输任务 ──展开为── 传输步骤
+
+代码生成配置 ──一对多── 字段配置 ──输出── 管理端代码
+示例插件 ──独立于── 上述业务，只验证插件加载
+```
+
+功能权限只来自菜单节点上的 `permission`。数据范围只来自角色的 `data_scope`，超管两种检查都跳过。文件传输的进度以任务和步骤表为准，SSE 只做推送。
