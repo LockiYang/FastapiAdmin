@@ -53,7 +53,6 @@ backend/env/.env.test
 
 docker/.env
 docker/nginx/app/dist
-docker/nginx/docs/dist
 docker/nginx/web/dist
 docker/nginx/ssl/*
 !docker/nginx/ssl/.gitkeep
@@ -61,9 +60,6 @@ docker/nginx/ssl/*
 frontend/web/.env
 frontend/web/.env.development
 frontend/web/.env.production
-
-# frontend/docs/*
-!frontend/docs/.gitkeep
 
 # frontend/app/*
 !frontend/app/.gitkeep

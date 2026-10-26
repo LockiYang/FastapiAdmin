@@ -12,7 +12,7 @@ docker/
 │   ├── nginx.conf          # Nginx 配置文件
 │   ├── ssl/                # SSL 证书目录（放置 server.key / server.pem，.gitignore 已排除）
 │   ├── web/                # 前端静态文件（构建后自动放置 dist/）
-│   └── app/ + docs/        # 移动端 H5 / 文档站点（按需启用）
+│   └── app/               # 移动端 H5
 ├── mysql/                  # MySQL 持久化 & 初始化
 │   ├── init/               # 首次启动时执行的 SQL 脚本（可选）
 │   └── data/               # 数据库数据文件（自动生成）
@@ -97,7 +97,7 @@ docker/
 | `./deploy.sh logs` | 查看所有容器日志 |
 | `./deploy.sh verify` | 验证部署状态 |
 | `./deploy.sh clean` | 清理旧镜像和构建缓存 |
-| `./deploy.sh --build-frontend` | 完整部署并构建前端（web / app / docs） |
+| `./deploy.sh --build-frontend` | 完整部署并构建前端（web） |
 | `./deploy.sh --skip-frontend` | 完整部署并跳过前端构建（默认） |
 
 或在 `.env` 中设置 `BUILD_WEB=true` 使部署脚本自动构建前端。
@@ -135,7 +135,7 @@ docker compose up -d --no-deps --build [service_name]
 | API 健康检查 | `https://your-domain/health` |
 | 后台登录 | 默认账号 `admin`，密码 `123456` |
 
-> **注意**: `docs`（官网）和 `app`（移动端 H5）默认不参与部署，如需启用请取消 docker-compose.yaml 中相关卷挂载注释。
+> 站点根路径 `/` 跳转到管理后台 `/web/`；移动端 H5 仍通过 `/app` 提供，部署时需准备对应构建产物。
 
 ## 容器资源限制
 
@@ -183,7 +183,6 @@ docker compose logs -f [服务名]
    ```env
    BUILD_WEB=true
    # BUILD_APP=true
-   # BUILD_DOCS=true
    ```
 
 ## 生产部署建议

@@ -25,7 +25,7 @@
 
 它给模型的是可执行约定，而不是产品介绍：
 
-- 工程地图：`backend/`、`frontend/web/`、`frontend/app/`、`frontend/docs/`、`docker/` 各自的技术栈和入口
+- 工程地图：`backend/`、`frontend/web/`、`frontend/app/`、`docker/` 各自的技术栈和入口
 - 后端模块固定文件：`controller.py` / `service.py` / `crud.py` / `model.py` / `schema.py`，路由在 `app/api/v1/routers.py` 注册，权限标识是 `模块:资源:操作`
 - 前端 Web 套件：`useTable`、`FaTable`、`v-hasPerm`、动态菜单、KeepAlive 与 WebSocket 的清理方式
 - 验证命令：后端 `uv run pytest`；前端 `pnpm ts:check`、`pnpm lint`、`pnpm test`
@@ -240,8 +240,6 @@ dsh/AUDIT-REPORT.md
 | [REQUIREMENTS.md](../../REQUIREMENTS.md) | 目标产品规格；需求成员的审计基线。 | 作为任务输入，不能代替当前源码事实。 |
 | [backend/docs/prd.md](prd.md)、[arch.md](arch.md)、[fastapi.md](fastapi.md)、[basics.md](basics.md) | 后端行为、架构和开发知识。 | 帮助成员理解任务；不是团队插件配置。 |
 | [DEPLOYMENT.md](../../DEPLOYMENT.md)、[CONTRIBUTING.md](../../CONTRIBUTING.md) | 部署和贡献流程。 | 提供交付约束，不执行成员协调。 |
-| [frontend/docs/src/guide/guidelines.md](../../frontend/docs/src/guide/guidelines.md) | 团队开发、提交、测试和 Code Review 规范。 | 通用开发协作规范，不能仅凭“团队”字样判为多智能体协议。 |
-| [frontend/docs/src/guide/why.md](../../frontend/docs/src/guide/why.md)、[overview.md](../../frontend/docs/src/guide/overview.md)、[about/about.md](../../frontend/docs/src/about/about.md) | 业务模块边界、低耦合与多人开发的说明。 | 描述架构对协作的帮助，没有智能体调度规则。 |
 | `frontend/app/.agents/skills/` | `create-wot-ui-theme`、`wot-ui-v2`、`starter-cleaner`、`wot-ui-unocss-preset-guide`、`wot-ui-cli` 五项技能及其支持文件。 | 面向 AI 的移动端开发技能；目录名含 `.agents` 不代表会启动多个智能体。 |
 
 README、CHANGELOG 等也可被成员作为背景读取，但没有因此被列为直接多智能体协作文件。依赖名称中的 `agent-base`、`http-proxy-agent`、`https-proxy-agent` 属于网络代理依赖，不是 AI 开发团队。

@@ -5,11 +5,11 @@ location ~ /\. {
     access_log off;
     log_not_found off;
 }
-location ~* ^/(web|app|docs)/(js|css|assets|static)/ {
+location ~* ^/(web|app)/(js|css|assets|static)/ {
     add_header Cache-Control "public, max-age=31536000, immutable";
     access_log off;
 }
-location ~* ^/(web|app|docs)/[^/]*\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot)$ {
+location ~* ^/(web|app)/[^/]*\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot)$ {
     add_header Cache-Control "public, max-age=2592000";
     access_log off;
 }

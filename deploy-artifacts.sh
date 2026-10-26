@@ -269,15 +269,19 @@ print(\"    自检通过:\", len(mods), \"个 ${db} 驱动\")
 
 # ---------- 验证 ----------
 verify() {
-  log "公网四端验证"
+  log "公网入口验证"
   local fail=0
   for p in "/" "/web/" "/app/" "/api/v1/monitor/health/check"; do
     printf '  %-42s ' "$p"
     code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://service.fastapiadmin.com${p}")
     printf 'HTTP %s\n' "$code"
-    [ "$code" = "200" ] || fail=1
+    if [ "$p" = "/" ]; then
+      [ "$code" = "302" ] || fail=1
+    else
+      [ "$code" = "200" ] || fail=1
+    fi
   done
-  [ "$fail" -eq 0 ] && ok "四端全部 200" || die "存在非 200 端点"
+  [ "$fail" -eq 0 ] && ok "根入口返回 302，其余端点返回 200" || die "存在响应状态异常的端点"
 }
 
 # ---------- 轮转清理：备份目录与镜像仓库，避免磁盘无限增长 ----------

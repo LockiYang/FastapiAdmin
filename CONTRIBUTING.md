@@ -4,17 +4,16 @@
 
 ## 快速链接
 
-- 📖 **项目文档**: [service.fastapiadmin.com](https://service.fastapiadmin.com/)
+- 📖 **项目文档**: [架构说明](backend/docs/arch.md) · [业务规则](backend/docs/prd.md)
 - 🐛 **反馈 Bug**: [GitHub Issues](https://github.com/fastapiadmin/FastapiAdmin/issues) | [Gitee Issues](https://gitee.com/fastapiadmin/FastapiAdmin/issues)
 - 💡 **功能建议**: 先提 Issue 讨论，再动手写代码
-- 📝 **开发规范**: [代码风格指南](https://service.fastapiadmin.com/guide/guidelines)
 - 💬 **社区交流**: 扫码加入微信群（二维码见 [README](./README.md)）
 
 ## 开始之前
 
 1. 先搜索现有 [Issues](https://github.com/fastapiadmin/FastapiAdmin/issues)，避免重复提交
 2. 较大改动建议先开 Issue 讨论方案
-3. 遵循 [提交信息规范](https://service.fastapiadmin.com/guide/guidelines)
+3. 使用约定式提交信息，例如 `feat: 新增功能`、`fix: 修复问题`
 
 ## 本地开发环境
 
@@ -27,9 +26,6 @@ cd frontend/web && pnpm install && pnpm run dev
 
 # 小程序（uni-app，微信开发者工具导入 dist/dev/mp-weixin）
 cd frontend/app && pnpm install && pnpm dev:mp-weixin
-
-# 文档
-cd frontend/docs && pnpm install && pnpm run dev
 ```
 
 ## Pull Request 流程

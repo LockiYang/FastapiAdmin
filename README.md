@@ -9,15 +9,12 @@
 | 📱 **移动端**（H5 + 小程序）一体 | ✅ | ❌ | ❌ |
 | 🐳 **Docker 一键部署**（含 Nginx + SSL） | ✅ | ❌ | ❌ |
 
-> 👉 详细技术选型对比：[为什么选择 FastapiAdmin？](https://service.fastapiadmin.com/guide/why)
-
 ## 🍪 在线体验
 
 | 端 | 地址 | 账号 |
 |----|------|------|
 | 💻 Web 端 | [service.fastapiadmin.com/web](https://service.fastapiadmin.com/web) | `admin` / `123456` |
 | 📱 移动端 | [service.fastapiadmin.com/app](https://service.fastapiadmin.com/app) | `admin` / `123456` |
-| 📖 官方文档 | [service.fastapiadmin.com](https://service.fastapiadmin.com) | 无需登录 |
 
 ## 🚀 5 分钟本地跑起来
 
@@ -68,8 +65,7 @@ FastapiAdmin/            # Monorepo 全栈工程
 ├─ backend/              # FastAPI 后端（Pydantic 2.0 + SQLAlchemy + Alembic）
 ├─ frontend/
 │   ├── web/             # Vue3 Web 前端（Element Plus + TypeScript）
-│   ├── app/             # UniApp 移动端（H5 + 小程序 + App）
-│   └── docs/            # VitePress 文档网站
+│   └── app/             # UniApp 移动端（H5 + 小程序 + App）
 ├─ docker/               # Docker Compose 一键部署（Nginx + SSL）
 ├─ deploy.sh             # 一键部署脚本
 └─ LICENSE               # MIT 开源协议
@@ -118,7 +114,7 @@ ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 
 ## 📖 文档地址
 
-- 🌐 [官网文档](https://service.fastapiadmin.com) — 完整开发指南、架构设计、二开教程
+- 📖 [架构说明](backend/docs/arch.md) · [业务规则](backend/docs/prd.md)
 - 📁 子工程 README：[backend](backend/README.md) · [web](frontend/web/README.md) · [移动端](frontend/app/README.md) · [Docker](docker/README.md)
 
 ## 🙏 鸣谢
