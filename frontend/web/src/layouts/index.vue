@@ -31,9 +31,6 @@
       <FaGlobalComponent />
       <FaGuide v-if="guideVisible" v-model="guideVisible" @skip="onGuideFinished" />
     </div>
-
-    <!-- AI 助手 -->
-    <FaAiAssistant v-if="enableAiAssistant" />
   </div>
 </template>
 
@@ -58,13 +55,6 @@ defineOptions({ name: "AppLayout" });
 const appStore = useAppStore();
 const settingStore = useSettingsStore();
 const userStore = useUserStore();
-
-// ── AI 助手 ──
-const enableAiAssistant = computed(() => {
-  const isEnabled = settingStore.userEnableAi;
-  const isLoggedIn = userStore.basicInfo && Object.keys(userStore.basicInfo).length > 0;
-  return isEnabled && isLoggedIn;
-});
 
 /** 新手指引显隐 —— session 级状态，首次登录/注册后自动弹出 */
 const guideVisible = computed({

@@ -65,7 +65,6 @@ DOMAIN_CONTROLLERS: dict[str, list[APIRouter]] = {
             "app.modules.storage.workflow.controller:StorageWorkflowRouter",
         ),
     ],
-    "/ai": _optional_controllers("ai", "app.modules.ai.chat.controller:ChatRouter"),
     "/generator": _optional_controllers("generator", "app.modules.generator.gencode.controller:GenRouter"),
     "/common": [FileRouter],
 }

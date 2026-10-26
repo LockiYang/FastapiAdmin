@@ -167,7 +167,7 @@
 import { Picture, Paperclip, ArrowDown } from "@element-plus/icons-vue";
 
 import meAvatar from "@imgs/avatar/avatar5.webp";
-import aiAvatar from "@imgs/avatar/avatar10.webp";
+import demoAvatar from "@imgs/avatar/avatar10.webp";
 import avatar2 from "@imgs/avatar/avatar2.webp";
 import avatar3 from "@imgs/avatar/avatar3.webp";
 import avatar4 from "@imgs/avatar/avatar4.webp";
@@ -342,10 +342,10 @@ const messages = ref([
   {
     id: 1,
     sender: "Art Bot",
-    content: "你好！我是你的AI助手，有什么我可以帮你的吗？",
+    content: "你好！有什么我可以帮你的吗？",
     time: "10:00",
     isMe: false,
-    avatar: aiAvatar,
+    avatar: demoAvatar,
   },
   {
     id: 2,
@@ -361,7 +361,7 @@ const messages = ref([
     content: "好的，我来为您介绍系统的主要功能。首先，您可以通过左侧菜单访问不同的功能模块...",
     time: "10:02",
     isMe: false,
-    avatar: aiAvatar,
+    avatar: demoAvatar,
   },
   {
     id: 4,
@@ -377,7 +377,7 @@ const messages = ref([
     content: "当然可以。数据分析模块可以帮助您实时监控关键指标，并生成详细的报表...",
     time: "10:06",
     isMe: false,
-    avatar: aiAvatar,
+    avatar: demoAvatar,
   },
   {
     id: 6,
@@ -393,7 +393,7 @@ const messages = ref([
     content: "您可以先创建一个项目，然后在项目中添加相关的数据源，系统会自动进行分析。",
     time: "10:09",
     isMe: false,
-    avatar: aiAvatar,
+    avatar: demoAvatar,
   },
   {
     id: 8,
@@ -409,7 +409,7 @@ const messages = ref([
     content: "不客气，有任何问题随时联系我。",
     time: "10:11",
     isMe: false,
-    avatar: aiAvatar,
+    avatar: demoAvatar,
   },
 ]);
 

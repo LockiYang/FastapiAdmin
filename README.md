@@ -92,16 +92,15 @@ FastapiAdmin/            # Monorepo 全栈工程
 | 🧩 定时任务 | 定时任务调度与任务节点 | `task` |
 | 🔧 代码生成器 | 选表 → 生成前后端全量代码 | `generator` |
 | 📁 数据存储 | 存储源、文件浏览、传输任务与流程编排（SFTP / S3 / OSS / COS / OBS） | `storage` |
-| 🤖 AI 对话 | 基于 Agno 的智能体对话 | `ai` |
 | 💬 内部聊天（规划中） | 系统内用户**纯文字**私聊 / 群聊（WebSocket 实时推送 + 未读角标） | `chat`（尚未接入裁剪开关） |
 
 ## 🔧 模块裁剪
 
-已实现的扩展模块可通过 `backend/app/config/setting.py` 中的 `ENABLED_MODULES` 按需启用 / 停用。默认启用 `generator`、`task`、`storage`、`ai`。停用模块的接口、运行时初始化和导航菜单不会加载或显示，已有数据库表与菜单数据会保留。`chat` 为规划项，目前加入列表不会启用内部聊天：
+已实现的扩展模块可通过 `backend/app/config/setting.py` 中的 `ENABLED_MODULES` 按需启用 / 停用。默认启用 `generator`、`task`、`storage`。停用模块的接口、运行时初始化和导航菜单不会加载或显示，已有数据库表与菜单数据会保留。`chat` 为规划项，目前加入列表不会启用内部聊天：
 
 ```python
 # 默认配置；task 和 storage 可以分别移除
-ENABLED_MODULES = ["generator", "task", "storage", "ai"]
+ENABLED_MODULES = ["generator", "task", "storage"]
 ```
 
 ## 🚦 部署说明
@@ -109,7 +108,7 @@ ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 - **内部聊天范围**：规划为纯文字私聊 / 群聊；当前 `fastlink/fachat` 是本地模拟页面，尚无对应的服务端消息接口。
 - **页面与接口路径**：侧边栏页面分别位于 `/task/`*、*`/storage/`；后端 API 路径分别为 `/task/cronjob/`*、`/task/storage/*`。
 - **单实例部署**：定时任务调度器涉及本地调度与共享状态；多实例部署需确认调度锁、任务执行与状态同步符合预期。
-- **密钥安全**：所有第三方密钥（AI、云存储等）请配置在 `backend/env/.env.`* 环境变量中，**切勿提交到仓库或写入数据库**。
+- **密钥安全**：所有第三方密钥（云存储、第三方登录等）请配置在 `backend/env/.env.`* 环境变量中，**切勿提交到仓库或写入数据库**。
 - **数据库迁移**：正式环境请使用 Alembic 迁移（`uv run alembic upgrade head`）管理表结构变更，`create_all` 仅用于首次初始化的兜底。
 
 ## 📖 文档地址
@@ -124,4 +123,3 @@ ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 - 后端：[FastAPI](https://fastapi.tiangolo.com/) · [Pydantic](https://docs.pydantic.dev/) · [SQLAlchemy](https://www.sqlalchemy.org/) · [APScheduler](https://github.com/agronholm/apscheduler)
 - 前端：[Vue3](https://cn.vuejs.org/) · [TypeScript](https://www.typescriptlang.org/) · [Vite](https://vitejs.dev/) · [Element Plus](https://element-plus.org/)
 - 移动端：[UniApp](https://uniapp.dcloud.net.cn/) · [Wot Design Uni](https://wot-ui.cn/)
-- AI：[Agno](https://github.com/agno-agi/agno)

@@ -116,16 +116,6 @@
         // #endif
         // #ifdef H5 || MP-WEIXIN
         {
-          "path": "module_ai/chat/index",
-          "type": "page",
-          "name": "work-chat",
-          "style": {
-            "navigationBarTitleText": "AI 助手"
-          }
-        },
-        // #endif
-        // #ifdef H5 || MP-WEIXIN
-        {
           "path": "module_system/profile/index",
           "type": "page",
           "name": "profile",
@@ -135,15 +125,6 @@
           }
         },
         // #endif
-        {
-          "path": "module_ai/ai-models/index",
-          "type": "page",
-          "name": "work-ai-models",
-          "style": {
-            "navigationBarTitleText": "AI 模型配置",
-            "enablePullDownRefresh": true
-          }
-        },
         {
           "path": "module_system/notices/index",
           "type": "page",

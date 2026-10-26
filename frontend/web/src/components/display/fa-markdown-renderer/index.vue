@@ -42,7 +42,7 @@ interface Props {
   content: string;
   /** 超过此长度则截断并追加 "..."（按字符数，不按渲染后长度） */
   maxLength?: number;
-  /** 是否对渲染后的 HTML 做 XSS 消毒，默认 true（AI 场景默认开；可信后端 HTML 渲染时可关闭） */
+  /** 是否对渲染后的 HTML 做 XSS 消毒，默认 true（可信后端 HTML 渲染时可关闭） */
   sanitize?: boolean;
 }
 

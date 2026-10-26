@@ -29,7 +29,6 @@ backend/
 │   │   ├── monitor/         #   系统监控
 │   │   ├── task/            #   定时任务（cronjob）+ 存储传输（storage）
 │   │   ├── generator/       #   代码生成
-│   │   ├── ai/              #   AI 功能
 │   │   └── common/          #   文件上传 / 公共能力
 │   ├── common/              # 公共组件（常量、枚举、响应封装）
 │   ├── config/              # 项目配置文件

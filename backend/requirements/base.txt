@@ -2,8 +2,6 @@
 # 核心依赖（与数据库、对象存储无关，任何部署方式都需要）
 # 用法：pip install -r requirements/base.txt -r requirements/db/<你的数据库>.txt
 # ============================================================================
-agno==2.5.8                            # AI agent 框架
-aiosqlite==0.22.1                      # AI 模块内嵌知识库固定用 sqlite（与主库类型无关），故列入核心
 aiofiles==24.1.0                       # 异步文件操作
 alembic==1.18.4                        # 数据库迁移
 apscheduler==3.11.0                    # 定时任务
@@ -15,7 +13,6 @@ greenlet==3.5.2                        # SQLAlchemy 异步必需
 httpx==0.28.1                          # HTTP 客户端
 jinja2==3.1.6                          # 模板引擎（代码生成）
 loguru==0.7.3                          # 日志
-openai==2.46.0                         # OpenAI 兼容接口
 openpyxl==3.1.5                        # Excel 导入导出
 psutil==7.2.2                          # 系统信息采集
 py-ip2region==3.0.4                    # IP 归属地离线查询

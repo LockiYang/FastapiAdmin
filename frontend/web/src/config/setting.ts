@@ -82,8 +82,6 @@ export const SETTING_DEFAULT_CONFIG = {
   guideVisible: false,
   /** 是否启动引导 */
   showGuide: true,
-  /** 是否开启AI助手 */
-  aiEnabled: false,
   /** 是否开启灰色模式 */
   grayMode: false,
   /** 页面切换动画 */

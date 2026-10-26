@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # ******************* 项目环境 ****************** #
     # ================================================= #
     ENVIRONMENT: EnvironmentEnum = EnvironmentEnum.DEV
-    # 可选业务模块；调整后需重启服务。存储与定时任务可分别启用。ai
+    # 可选业务模块；调整后需重启服务。存储与定时任务可分别启用。
     ENABLED_MODULES: list[str] = ["generator", "task", "storage"]
 
     def module_enabled(self, name: str) -> bool:
@@ -242,13 +242,6 @@ class Settings(BaseSettings):
     SWAGGER_JS_URL: str = "static/swagger/swagger-ui/swagger-ui-bundle.js"
     REDOC_JS_URL: str = "static/swagger/redoc/bundles/redoc.standalone.js"
     FAVICON_URL: str = "static/image/favicon.ico"
-
-    # ================================================= #
-    # ******************* AI大模型配置 ****************** #
-    # ================================================= #
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = ""
-    OPENAI_BASE_URL: str = ""  # API Base URL，如 https://api.minimax.chat/v1
 
     @model_validator(mode="after")
     def _merge_localhost_hosts(self) -> "Settings":

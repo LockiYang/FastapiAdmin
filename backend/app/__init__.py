@@ -27,11 +27,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
 
     await InitializeData().init_db()
     logger.info(f"✅ {settings.DATABASE_TYPE} 连接初始化完成")
-    if "ai" in settings.ENABLED_MODULES:
-        from app.modules.ai.chat.crud import init_agno_tables
-
-        await init_agno_tables()
-        logger.info("✅ AI 会话表 初始化完成")
     await redis_connect(app, status=True)
     logger.info("✅ Redis 连接初始化完成")
     await ParamsService.init_cache(redis=app.state.redis)

@@ -225,44 +225,8 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
     ],
   },
   {
-    anchor: "mod-ai",
-    heading: "四、AI 模块",
-    pkgTag: "module_ai",
-    pages: [
-      {
-        anchor: "page-ai-chat",
-        title: "AI智能助手",
-        path: "module_ai/chat/index.vue",
-        notes: [
-          "布局：左侧 `Sidebar`（会话列表、新建会话）；右侧 `ChatNavbar` + `ChatMessages` + `ChatInput`。",
-          "连接：`toggleConnection`、连接状态展示；清空对话、侧栏折叠。",
-          "完整性：发消息、收消息列表滚动、错误条展示与关闭；流式与否依赖后端/WebSocket 对接。",
-        ],
-      },
-      {
-        anchor: "page-ai-fachat",
-        title: "会话聊天",
-        path: "module_ai/fachat/index.vue",
-        notes: [
-          "布局：左侧联系人列表（搜索、排序下拉、在线点）；右侧头部「Art Bot」状态与语音/视频等图标按钮；中部消息气泡列表；底部输入框与发送。",
-          "完整性：选人切换会话、发送消息、滚动消息区；当前多为演示数据与本地发送逻辑。",
-        ],
-      },
-      {
-        anchor: "page-ai-memory",
-        title: "会话记忆",
-        path: "module_ai/memory/index.vue",
-        notes: [
-          "检索：FaSearchBar + 分页表。",
-          "工具栏：新增、批量删除、刷新、列配置；权限锚点 `module_ai:chat:create|delete`（与后端标识一致）。",
-          "弹层：详情与表单 Drawer（会话记忆字段）；完整性：CRUD 与分页均需验证。",
-        ],
-      },
-    ],
-  },
-  {
     anchor: "mod-generator",
-    heading: "五、代码生成器",
+    heading: "四、代码生成器",
     pkgTag: "module_generator",
     pages: [
       {
@@ -280,7 +244,7 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
   },
   {
     anchor: "mod-app",
-    heading: "六、应用管理",
+    heading: "五、应用管理",
     pkgTag: "module_application",
     pages: [
       {
@@ -298,7 +262,7 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
   },
   {
     anchor: "mod-example",
-    heading: "七、示例模块",
+    heading: "六、示例模块",
     pkgTag: "module_example",
     pages: [
       {
@@ -314,7 +278,7 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
   },
   {
     anchor: "mod-dashboard",
-    heading: "八、仪表盘",
+    heading: "七、仪表盘",
     pkgTag: "dashboard",
     pages: [
       {
@@ -408,7 +372,7 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
   },
   {
     anchor: "mod-layout",
-    heading: "九、布局与通用功能",
+    heading: "八、布局与通用功能",
     pkgTag: "layouts",
     pages: [
       {
@@ -486,7 +450,7 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
   },
   {
     anchor: "mod-exception",
-    heading: "十、异常页",
+    heading: "九、异常页",
     pkgTag: "exception",
     pages: [
       {

@@ -156,7 +156,6 @@ p = pathlib.Path("/tmp/fa-ctx/backend/env/.env.prod")
 force = {"DATABASE_HOST": "localhost", "REDIS_HOST": "localhost"}
 if db == "postgres":
     force.update({"DATABASE_TYPE": "postgres", "DATABASE_PORT": "5432", "DATABASE_USER": "postgres"})
-drop_prefixes = ("OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL")
 # 口令类：运行时全部由 compose 注入，镜像内保留会成为泄露面
 drop_keys = {
     "DATABASE_PASSWORD", "REDIS_PASSWORD",
@@ -168,8 +167,6 @@ for line in p.read_text().splitlines():
     m = re.match(r"^(\s*)([A-Z_]+)(\s*=\s*)(.*)$", line)
     if m and m.group(2) in force:
         out.append(f"{m.group(1)}{m.group(2)}{m.group(3)}{force[m.group(2)]}")
-    elif m and m.group(2).startswith(drop_prefixes):
-        continue
     elif m and m.group(2) in drop_keys:
         continue
     else:

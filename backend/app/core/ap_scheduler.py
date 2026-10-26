@@ -42,8 +42,6 @@ JOB_STATUS_FAILED = 3
 _JOB_ERROR_HINTS: list[tuple[str, str]] = [
     ("maximum number of running instances", "任务已达最大并发实例数，本次执行被跳过（可调大节点的 max_instances）"),
     ("was missed by", "任务错过计划执行时间（misfire，通常因进程繁忙或重启空窗）"),
-    ("Insufficient Balance", "AI 模型账户余额不足"),
-    ("Payment Required", "AI 模型服务计费失败（HTTP 402）"),
     ("Unauthorized", "上游认证失败（HTTP 401），请检查访问令牌"),
     ("rate limit", "触发上游限流（HTTP 429），请稍后重试"),
     ("Connection", "网络连接异常，请检查目标地址与网络"),

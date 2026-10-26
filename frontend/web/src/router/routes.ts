@@ -252,7 +252,7 @@ export const staticRoutes: AppRouteRecordRaw[] = [
         meta: DASHBOARD_PARENT_META,
         children: dashboardLayoutChildren,
       },
-      // 隐藏的壳层路由：个人中心、更新日志、定价、教程、AI 聊天
+      // 隐藏的壳层路由：个人中心、更新日志、定价、教程、聊天演示
       {
         path: "fastlink",
         name: "Fastlink",

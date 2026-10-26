@@ -2,7 +2,7 @@
 
 > DSH 协作手册与历史审计报告现统一归档在根目录 `dsh/`。下文第 1–4 节保留原审计时的组织说明；当前文件位置以第 5.2 节链接为准。
 
-第 1–4 节覆盖仓库**根目录**和 **`backend/`** 里、会被 AI Coding（单会话编码、子任务委派、多智能体团队）读取或产出的文档。第 5 节为 **2026-10-08 全仓库多智能体协作文件盘点**，补充前端、部署、隐藏目录和业务代码，区分直接协作规则、团队交付物、通用 AI 技能与业务 Agent/Team。
+第 1–4 节覆盖仓库**根目录**和 **`backend/`** 里、会被 AI Coding（单会话编码、子任务委派、多智能体团队）读取或产出的文档。第 5 节为 **2026-10-08 全仓库多智能体协作文件盘点**，补充前端、部署、隐藏目录和业务代码，区分直接协作规则、团队交付物、通用 AI 技能。
 
 这些文档分成四类角色：
 
@@ -97,15 +97,15 @@ Playbook 第 7 节的审计波模板直接对应下面这些报告文件名，�
 
 开篇写明：业务范围以本文件为准；接口行为以 `backend/app/` 里的 Controller、Schema、Service、Model 核对。文末「核对来源」把根 `REQUIREMENTS.md` 标成需求背景，把 `routers.py`、各模块源码和 `base_crud` / `permission` / `dependencies` 标成实际契约。
 
-AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 行的 `REQUIREMENTS.md`。它按业务域写规则和路径：系统、任务与存储、AI 聊天与代码生成、监控，并给出表索引。
+AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 行的 `REQUIREMENTS.md`。它按业务域写规则和路径：系统、任务与存储、代码生成、监控，并给出表索引。
 
 ### 2.2 `docs/arch.md` — 项目架构与开发指南
 
 说明单体 FastAPI 如何分层，以及一次请求怎么走完：
 
-`客户端 →（Docker 时）Nginx → FastAPI → Controller → Service → CRUD → MySQL/PostgreSQL/SQLite、Redis、对象存储或 AI 模型`
+`客户端 →（Docker 时）Nginx → FastAPI → Controller → Service → CRUD → MySQL/PostgreSQL/SQLite、Redis、对象存储`
 
-同时写清启动顺序（`create_app`、迁移与种子、Agno 会话表、Redis、调度器）和目录依赖方向：业务模块依赖 `core/common/utils/config`，Controller 依赖 Service，Service 依赖 CRUD，`core` 不承载具体业务规则。
+同时写清启动顺序（`create_app`、迁移与种子、Redis、调度器）和目录依赖方向：业务模块依赖 `core/common/utils/config`，Controller 依赖 Service，Service 依赖 CRUD，`core` 不承载具体业务规则。
 
 模型要决定「新代码放哪、请求链上谁负责校验和事务」时读它。`fastapi.md` 和 `basics.md` 都指向这里，避免教学片段被当成仓库入口。
 
@@ -210,7 +210,7 @@ dsh/AUDIT-REPORT.md
 
 项目中的 AI Coding 多智能体协作主要由 **1 份协作手册、1 份审计总报告、7 份分报告，以及 Git 忽略规则**体现。它们记录的是 DeepSeek DSH 开发团队的协作流程，并非项目业务后端实现的团队调度系统。
 
-本次使用 `rg --files --hidden` 和全文搜索核对根目录、`backend/`、`frontend/`、`docker/`、`.github/` 及可见隐藏文件；关键词包括 `多智能体`、`agent-teams`、`subagent`、`teammate`、`DSH`、`审计成员`、`队长`、`reviewedTaskId`、`changedPaths`、`agno.team`。排除 `.git`、依赖安装目录、虚拟环境、构建产物和锁文件噪声。另按路径检查了根目录的 AI 配置与团队状态目录是否存在。
+本次使用 `rg --files --hidden` 和全文搜索核对根目录、`backend/`、`frontend/`、`docker/`、`.github/` 及可见隐藏文件；关键词包括 `多智能体`、`agent-teams`、`subagent`、`teammate`、`DSH`、`审计成员`、`队长`、`reviewedTaskId`、`changedPaths`。排除 `.git`、依赖安装目录、虚拟环境、构建产物和锁文件噪声。另按路径检查了根目录的 AI 配置与团队状态目录是否存在。
 
 本次只核对文件用途与协作关联，未重跑历史报告中的测试、部署或安全验证。下表的行号为本次检查时的定位信息，后续文件变化后应按内容重新定位。
 
@@ -244,18 +244,7 @@ dsh/AUDIT-REPORT.md
 
 README、CHANGELOG 等也可被成员作为背景读取，但没有因此被列为直接多智能体协作文件。依赖名称中的 `agent-base`、`http-proxy-agent`、`https-proxy-agent` 属于网络代理依赖，不是 AI 开发团队。
 
-### 5.4 业务中的 Agno Agent/Team：与开发团队区分
-
-| 文件 | 证据位置 | 实际职责 |
-| --- | --- | --- |
-| [backend/app/utils/ai_factory.py](../app/utils/ai_factory.py) | 第 3–5、56–80 行 | `AgnoFactory.create_agent()` 创建 Agno `Agent` 和 `Team`，供产品的 AI 聊天使用。当前 `members=[fastapiadmin_agent]` 只有一个成员，且该成员 `tools=[]`；不能据此认定已实现多个编码智能体协作。 |
-| [backend/app/modules/ai/chat/service.py](../app/modules/ai/chat/service.py) | 第 9–10、171、222–229 行 | 使用 Team 会话和运行结果，调用工厂创建聊天实例并运行模型。 |
-| [backend/app/modules/ai/chat/crud.py](../app/modules/ai/chat/crud.py) | 第 11、21、163–170 行 | Agno `TeamSession` 的数据库访问、创建和会话标识管理。 |
-| [docs/arch.md](../../docs/arch.md)、[prd.md](../../docs/prd.md) | `arch.md` §7；`prd.md` §10 | 介绍产品的 AI 聊天、模型配置与会话存储。 |
-
-这组代码属于应用功能，不负责 DSH 的成员创建、任务板、文件写入范围或代码复核门禁。前端 AI 聊天页面和接口同样属于产品功能。
-
-### 5.5 当前工作区状态及文档时效
+### 5.4 当前工作区状态及文档时效
 
 - **存在**：`dsh/TEAM-PLAYBOOK.md`、审计总报告和七份分报告、`.gitignore` 中的团队状态忽略规则，以及移动端 `.agents/skills/`。
 - **根目录未发现**：`AGENTS.md`、`.agent-teams/`、`.agent/`、`.agents/`、`.codex/`、`.codebuddy/`、`.workbuddy/`。这仅说明本次工作区没有这些路径，不能证明其他机器没有，也不能证明团队插件是否已安装。

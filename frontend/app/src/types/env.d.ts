@@ -18,7 +18,6 @@ interface ImportMetaEnv {
   /** 项目名称 */
   readonly VITE_APP_TITLE: string
   /** WebSocket 端点 */
-  readonly VITE_APP_WS_ENDPOINT?: string
 }
 
 interface ImportMeta {

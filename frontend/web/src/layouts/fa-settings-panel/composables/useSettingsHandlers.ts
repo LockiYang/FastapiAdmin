@@ -110,7 +110,6 @@ export function useSettingsHandlers() {
     appLogo: () => settingStore.updateSetting("showAppLogo", !settingStore.showAppLogo),
     loginGuide: () => settingStore.updateSetting("showGuide", !settingStore.showGuide),
     grayMode: () => settingStore.updateSetting("grayMode", !settingStore.grayMode),
-    aiAssistant: () => settingStore.updateSetting("userEnableAi", !settingStore.userEnableAi),
 
     // 菜单展开宽度
     menuOpenWidth: createValueHandler<number>((width: number) =>

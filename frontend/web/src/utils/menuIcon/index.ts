@@ -83,7 +83,6 @@ const FILE_SUFFIX: Record<string, string> = {
 };
 
 const REMIX_BY_NAME: Record<string, string> = {
-  ai: "ri:robot-2-line",
   alipay: "ri:alipay-fill",
   api: "ri:plug-line",
   arco: "ri:circle-line",
@@ -185,7 +184,6 @@ const REMIX_BY_NAME: Record<string, string> = {
   "item-react": "ri:reactjs-line",
   "item-vue": "ri:vuejs-line",
 
-  "ai copy": "ri:robot-2-line",
   "backtop copy": "ri:arrow-up-circle-line",
   "file copy": "ri:file-text-line",
   "vue copy": "ri:vuejs-line",

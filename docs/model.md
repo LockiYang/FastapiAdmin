@@ -2,19 +2,19 @@
 
 本文按 [PRD](prd.md) 的模块划分，说明数据表承载的功能、关键关联和非关系库存储。整理日期：2026-10-26。
 
-本次根据项目 ORM、初始化代码及本机 Agno 2.5.8 源码静态梳理，未连接开发库或线上库。以下是代码定义与建表逻辑的对应关系，不代表某个数据库当前已存在全部表；实际表清单还取决于数据库类型、初始化、迁移历史和模块运行情况。
+本文根据项目 ORM 与初始化代码静态梳理；历史 AI 表清单沿用移除前的 Agno 2.5.8 驱动核对结果，未连接开发库或线上库。以下是代码定义与建表逻辑的对应关系，不代表某个数据库当前已存在全部表；实际表清单还取决于数据库类型、初始化、迁移历史和模块运行情况。
 
 ## 1. 总览
 
-项目在 `backend/app` 中显式定义了 **29 张 ORM 表**，包括实体表和关联表；不含 Agno、APScheduler、Alembic 等框架管理的表。
+项目在 `backend/app` 中显式定义了 **29 张 ORM 表**，包括实体表和关联表；不含 APScheduler、Alembic 等框架表及历史待清理表。
 
 | 代码域 | 表数 | 对应 PRD |
 | --- | --- | --- |
 | `system` | 18 | §3 认证、§4 RBAC、§5 组织、§6 配置与字典、§7 内容与其他 |
 | `task` | 2 | §8 定时任务 |
 | `storage` | 6 | §9 存储与传输 |
-| `generator` | 2 | §11 代码生成 |
-| `plugin/module_example` | 1 | §13 示例插件 |
+| `generator` | 2 | §10 代码生成 |
+| `plugin/module_example` | 1 | §12 示例插件 |
 | **合计** | **29** | 同一张表可被多个功能复用，不按页面重复计数 |
 
 `task_storage_*` 虽沿用 `task_` 表名前缀，代码已归属独立 `storage` 模块。`task_cornjob_node`、`task_corn_job` 是当前真实表名，保留其现有拼写。
@@ -89,9 +89,9 @@
 
 | 表名 | PRD 模块 | 承载功能与关键关联 | 模型源码 |
 | --- | --- | --- | --- |
-| `gen_table` | §11 代码生成 | 表级生成配置；目标表、实体、主子表关系与父菜单选择 | [gencode/model.py](../backend/app/modules/generator/gencode/model.py) |
-| `gen_table_column` | §11 代码生成 | `table_id` 外键关联表配置；数据库字段、代码映射和表单、列表、查询配置 | [gencode/model.py](../backend/app/modules/generator/gencode/model.py) |
-| `example_demo` | §13 示例插件 | 插件加载与通用 CRUD 的演示记录，不承担产品业务 | [demo/model.py](../backend/app/plugin/module_example/demo/model.py) |
+| `gen_table` | §10 代码生成 | 表级生成配置；目标表、实体、主子表关系与父菜单选择 | [gencode/model.py](../backend/app/modules/generator/gencode/model.py) |
+| `gen_table_column` | §10 代码生成 | `table_id` 外键关联表配置；数据库字段、代码映射和表单、列表、查询配置 | [gencode/model.py](../backend/app/modules/generator/gencode/model.py) |
+| `example_demo` | §12 示例插件 | 插件加载与通用 CRUD 的演示记录，不承担产品业务 | [demo/model.py](../backend/app/plugin/module_example/demo/model.py) |
 
 生成器配置表保存的是生成规则；生成新业务代码并建表后产生的业务表，应归入该业务模块，不计为生成器配置表。
 
@@ -127,27 +127,34 @@
 
 当前调度器默认 jobstore 是 Redis，同时配置 SQLAlchemy 和内存 jobstore。即使默认任务不写关系库调度表，节点和执行日志仍可写业务表；表为空不能直接说明任务模块未工作。
 
-### 4.2 Agno 表与 AI 对话
+### 4.2 已移除 AI 模块：待删除表和历史数据
 
-应用启用 `ai` 时，[AI 初始化代码](../backend/app/modules/ai/chat/crud.py) 使用与业务配置对应的数据库驱动，调用 Agno 的 `_create_all_tables()`。MySQL 使用配置的数据库，PostgreSQL 使用 `public` schema，SQLite 使用配置文件。
+**状态：代码已移除，以下数据库及 Redis 清理均未执行。** 不再初始化或访问 AI 数据。下表为旧版 Agno 2.5.8 的默认表名候选，实际是否存在取决于数据库类型及历史初始化；清理前应核对实际库及是否被其他应用复用。
 
-下表依据本机安装的 Agno **2.5.8** 默认表名及异步驱动建表清单；依赖升级后需重新核对，不能将本清单当作已连接数据库的查询结果。
+| 待删除表名 | 历史用途 | 旧驱动建表范围 | 清理状态 |
+| --- | --- | --- | --- |
+| `agno_sessions` | 会话、运行与消息 | MySQL、PostgreSQL、SQLite | 待删除，未执行 |
+| `agno_memories` | 用户记忆 | 三种驱动 | 待删除，未执行 |
+| `agno_metrics` | 框架指标 | 三种驱动 | 待删除，未执行 |
+| `agno_eval_runs` | 评估记录 | 三种驱动 | 待删除，未执行 |
+| `agno_knowledge` | 知识内容 | 三种驱动 | 待删除，未执行 |
+| `agno_schema_versions` | 框架表结构版本 | 三种驱动 | 待删除，未执行 |
+| `agno_culture` | 共享经验 | MySQL | 待删除，未执行 |
+| `agno_traces`、`agno_spans` | 执行追踪 | MySQL | 待删除，未执行 |
+| `agno_learnings` | 学习数据 | PostgreSQL、SQLite | 待删除，未执行 |
+| `agno_schedules`、`agno_schedule_runs` | 框架计划及运行 | PostgreSQL、SQLite | 待删除，未执行 |
+| `agno_approvals` | 框架审批 | PostgreSQL、SQLite | 待删除，未执行 |
 
-| 默认表名 | 对应用途 | 当前驱动初始化情况 |
+以下只清理相关记录，**保留共享表和其他业务数据**：
+
+| 存储位置 | 待清理范围 | 清理状态 |
 | --- | --- | --- |
-| `agno_sessions` | §10 AI 会话、对话运行及消息数据；当前应用的主要 AI 持久化入口 | MySQL、PostgreSQL、SQLite |
-| `agno_memories` | 框架用户记忆 | 三种驱动；不代表已提供独立记忆管理功能 |
-| `agno_metrics` | 框架指标 | 三种驱动；不等于 §12 服务器监控表 |
-| `agno_eval_runs` | 框架评估记录 | 三种驱动；无对应独立 PRD 功能 |
-| `agno_knowledge` | 框架知识内容管理 | 三种驱动；不代表项目已实现知识库模块 |
-| `agno_schema_versions` | Agno 内部表结构版本 | 三种驱动；不同于 `sys_version` 和 `alembic_version` |
-| `agno_culture` | 框架文化或共享经验数据 | 本机 MySQL 驱动建表清单包含 |
-| `agno_traces`、`agno_spans` | 框架执行追踪 | 本机 MySQL 驱动建表清单包含 |
-| `agno_learnings` | 框架学习数据 | 本机 PostgreSQL、SQLite 驱动建表清单包含 |
-| `agno_schedules`、`agno_schedule_runs` | 框架计划及运行数据 | 本机 PostgreSQL、SQLite 驱动建表清单包含；不属于项目 §8 APScheduler 实现 |
-| `agno_approvals` | 框架审批数据 | 本机 PostgreSQL、SQLite 驱动建表清单包含；无对应独立 PRD 功能 |
+| `sys_menu` | 旧 `route_name=AI`、`route_path=/ai` 目录及其后代菜单、`module_ai:*` 按钮权限；新种子已移除，但不会更新非空旧表 | 待清理记录，未执行 |
+| `sys_role_menus` | 仅指向上述菜单 ID 的角色授权关联；先清关联，再按子节点到父节点清理菜单 | 待清理记录，未执行 |
+| Redis | `ai_model_config:items:*`、`ai_model_config:active:*`、`ai_model_config:lock:*` | 待清理键，未执行 |
+| 后台登录会话和浏览器缓存 | 旧会话、工作标签可能缓存菜单或旧地址；清理菜单后重新登录、清理相关标签刷新 | 未执行 |
 
-AI 会话的 Agno `user_id` 当前使用后台用户名字符串，并以 `team_id = "default"` 等上下文隔离；它不是到 `sys_user.id` 的数据库外键。个人模型配置及激活项保存在 Redis，不在上述表中。
+`sys_version`、`alembic_version`、`apscheduler_jobs` 及 29 张业务 ORM 表均不属于待删除表。旧会话以用户名关联后台账号，不需要删除 `sys_user`。本次未连接数据库或 Redis，未生成或执行删表迁移。
 
 ## 5. PRD 中没有独立业务表的功能
 
@@ -158,10 +165,9 @@ AI 会话的 Agno `user_id` 当前使用后台用户名字符串，并以 `team_
 | §4.3 菜单与按钮权限 | 共用 `sys_menu`，不是菜单表和按钮表各一张 |
 | §6 字典和参数读取 | 关系库保存定义，Redis 缓存供业务读取；缓存不是新增关系表 |
 | §9.2 文件浏览 | 复用 `task_storage_node` 连接存储源，文件和目录实际保存在本地磁盘或远端存储 |
-| §10 AI 模型配置 | Redis `ai_model_config` 按后台账号保存配置项与激活项 |
-| §12 在线用户 | Redis `user_session`，强制下线撤销会话，没有独立在线用户表 |
-| §12 健康检查、服务器资源、缓存监控 | 实时探测数据库、Redis、操作系统等，当前没有独立监控历史表 |
-| §12 公共上传下载 | 文件系统及业务字段引用；当前没有统一附件表，上传本身不会自动插入逐文件记录 |
+| §11 在线用户 | Redis `user_session`，强制下线撤销会话，没有独立在线用户表 |
+| §11 健康检查、服务器资源、缓存监控 | 实时探测数据库、Redis、操作系统等，当前没有独立监控历史表 |
+| §11 公共上传下载 | 文件系统及业务字段引用；当前没有统一附件表，上传本身不会自动插入逐文件记录 |
 | 公告和传输进度 SSE | 事件推送与 Redis Pub/Sub；公告、传输结果仍以各自业务表为准，不另建 SSE 事件表 |
 
 ## 6. 初始化、模块开关与种子数据
@@ -175,7 +181,7 @@ AI 会话的 Agno `user_id` 当前使用后台用户名字符串，并以 `team_
 | 启用 storage 时的种子 | `task_storage_node` |
 | 无预置种子的 ORM 表 | 其余 ORM 表由相应操作写入；没有种子不代表不建表 |
 
-种子位于 `backend/sql/<表名>.json`，目标表已有数据就整表跳过。Agno 和 APScheduler 的表由各自初始化机制维护，不通过上述 JSON 导入。
+种子位于 `backend/sql/<表名>.json`，目标表已有数据就整表跳过。APScheduler 的表由自身初始化机制维护，不通过上述 JSON 导入。已移除 AI 模块的历史清理范围见 §4.2。
 
 ## 7. 维护说明
 

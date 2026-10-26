@@ -43,15 +43,6 @@ const groups = [
       { icon: 'message', titleKey: 'common.nav.tickets', name: 'work-tickets' },
     ],
   },
-  {
-    titleKey: 'work.devTools',
-    color: 'var(--wot-purple-6)',
-    bg: 'wot-bg-purple-1',
-    items: [
-      { icon: 'message', titleKey: 'common.nav.aiChat', name: 'work-chat' },
-      { icon: 'robot', titleKey: 'common.nav.aiModels', name: 'work-ai-models' },
-    ],
-  },
 ]
 
 /** 搜索关键词，本地过滤模块分组 */

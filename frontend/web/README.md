@@ -124,7 +124,7 @@ src/
 | `VITE_API_URL`         | 浏览器侧发出的 API 根前缀（开发时常为 `/`）      |
 | `VITE_API_BASE_URL`    | **代理目标**：后端 HTTP 根地址                   |
 | `VITE_ACCESS_MODE`     | `frontend` / `backend` / `mixed`，菜单与路由来源 |
-| `VITE_APP_WS_ENDPOINT` | WebSocket（如 AI 对话）                          |
+| `VITE_APP_WS_ENDPOINT` | 实时事件服务地址（监控、传输 SSE）                          |
 | `VITE_APP_TITLE`       | 页面标题（可被后端参数配置覆盖）                 |
 
 完整列表以仓库内 **`.env`**、**`.env.dev`** 为准；模板说明见 **`.env.example`**。修改任一 env 后需 **重启** `pnpm dev`。

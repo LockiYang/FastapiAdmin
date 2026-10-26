@@ -17,7 +17,7 @@ FastAPI：中间件 → Controller → Service → CRUD / 存储适配器
               │                    │
               │                    ├─ SQLAlchemy → MySQL / PostgreSQL / SQLite
               │                    ├─ Redis → 会话、缓存、锁、事件分发
-              │                    └─ 文件存储、外部登录与模型服务
+              │                    └─ 文件存储与外部登录
               └─ APScheduler → 按节点配置执行定时任务
 ```
 
@@ -44,7 +44,7 @@ FastapiAdmin/
 │   ├── app/
 │   │   ├── __init__.py          # 应用工厂与生命周期
 │   │   ├── api/v1/routers.py    # 内置路由聚合
-│   │   ├── modules/            # system / monitor / task / storage / ai 等
+│   │   ├── modules/            # system / monitor / task / storage / generator 等
 │   │   ├── plugin/             # 自动发现的扩展模块
 │   │   ├── core/               # 数据库、权限、调度、中间件等运行机制
 │   │   ├── common/             # 枚举、请求与响应等共同约定
@@ -80,7 +80,6 @@ FastapiAdmin/
 | `task` | 调度任务及任务节点。 | `ENABLED_MODULES` 中的 `task`。 |
 | `storage` | 存储源、文件浏览、传输任务与流程。 | `storage`，与定时任务分别启用。 |
 | `generator` | 根据数据表生成后端、前端代码。 | `generator`。 |
-| `ai` | 模型配置、Agent/Team 与 AI 对话。 | `ai`。 |
 
 开关定义在 `backend/app/config/setting.py`，可由环境覆盖；新增可选模块时，要同时考虑路由、生命周期、种子和依赖。当前初始化仍加载全部 ORM 元数据，避免关闭模块后迁移误判为需要删除表；关闭模块不等同于移除表或卸载依赖。
 
@@ -108,7 +107,7 @@ FastapiAdmin/
 1. 加载 `setting.py` 与 `env/.env.dev` 或 `.env.prod`；环境变量可覆盖文件配置。
 2. 注册异常处理、中间件、内置路由、动态插件、静态资源和 Swagger/ReDoc；存在 `backend/dist` 时注册前端托管。
 3. 生命周期中初始化数据库结构、迁移与种子数据。
-4. 启用 AI 时初始化 Agno 会话表；连接 Redis 并初始化字典、参数缓存。
+4. 连接 Redis 并初始化字典、参数缓存。
 5. 启用 task 时启动调度协调与任务恢复。
 6. 关闭时释放调度器、Redis 和异步数据库引擎。
 
@@ -217,7 +216,7 @@ API 使用现有 `request`，通常从 `@utils` 导入；类型使用 `ApiRespon
 
 页面级 KeepAlive 入口是 `layouts/fa-page-content/index.vue`，目录路由不挂中间壳组件，缓存键为叶子路径 `path`，query 变化不会创建新实例。工作标签及 `include/exclude` 管理缓存集合；不要随意增加第二层 KeepAlive 或 `max`，也不要删除退出登录时的缓存驱逐逻辑。
 
-带 WebSocket、定时器或全局事件监听的缓存页面，需要处理 `onActivated`、`onDeactivated` 和卸载清理。WebSocket 防重入覆盖 CONNECTING 状态，沿用 `ws && ws.readyState !== WebSocket.CLOSED` 等现有守卫；主动关闭前清理回调，避免重复连接与提示。AI WebSocket 使用 `Sec-WebSocket-Protocol` 传令牌，客户端与后端握手协议需同时维护。
+带 WebSocket、定时器或全局事件监听的缓存页面，需要处理 `onActivated`、`onDeactivated` 和卸载清理。WebSocket 防重入覆盖 CONNECTING 状态，沿用 `ws && ws.readyState !== WebSocket.CLOSED` 等现有守卫；主动关闭前清理回调，避免重复连接与提示。WebSocket 鉴权工具支持通过 `Sec-WebSocket-Protocol` 传令牌，新增实时接口时需同时维护客户端与后端握手协议。
 
 ## 6. 移动端开发约定
 
@@ -237,7 +236,6 @@ API 使用现有 `request`，通常从 `@utils` 导入；类型使用 `ApiRespon
 | 内置任务 | `builtin:<模块名>[.<函数名>]` 从 `modules/task/node/handlers` 解析处理器；原始代码块受 `SCHEDULER_ALLOW_CODE_EXEC` 控制，默认关闭。 |
 | 文件存储 | `modules/storage/core` 适配本地、FTP/FTPS、SFTP 及 S3、OSS、COS、OBS 等存储；浏览、传输、流程模块调用适配层。 |
 | 传输任务 | 记录任务与步骤，在进程内异步执行，通过 SSE 推送状态。不能据此假定已有独立分布式任务队列或进程退出后自动续跑。 |
-| AI 对话 | 启用 `ai` 后提供 Agno Agent/Team、模型服务调用和 WebSocket 对话，会话使用 Agno 数据表；这是应用业务能力，与 AI 编码工具的开发团队机制分开。 |
 
 Redis 除登录会话、字典和参数缓存外，还用于验证码、调度选主锁、默认调度任务存储与 SSE 跨进程 Pub/Sub；SSE 连接及事件分发见 `core/sse_manager.py`。Redis 初始化连接失败会中止启动，不能把它当作可有可无的缓存。
 
@@ -271,7 +269,7 @@ Redis 除登录会话、字典和参数缓存外，还用于验证码、调度�
 
 复制环境模板后按使用的数据库配置连接，MySQL/PostgreSQL 需准备可连接的数据库服务与数据库，Redis 也需可用；SQLite 省去独立数据库服务，不能免除其他运行依赖。端口、API 前缀和 WebSocket 端点以当前环境配置为准，后端默认端口为 8001。
 
-Web HTTP 默认通过 `VITE_APP_BASE_API` 前缀请求，开发代理目标为 `VITE_API_BASE_URL`；AI WebSocket 使用 `VITE_APP_WS_ENDPOINT` 直连。API 代理配置不能自动代替 WebSocket 端点配置。
+Web HTTP 默认通过 `VITE_APP_BASE_API` 前缀请求，开发代理目标为 `VITE_API_BASE_URL`；监控与存储传输 SSE 使用 `VITE_APP_WS_ENDPOINT` 指定的实时服务基址，并将 `ws/wss` 转为 `http/https`。API 代理配置不会自动替代该基址。
 
 验证与 AI 行为遵循 AGENTS.md：未经用户要求不新增或修改测试脚本，不默认运行 pytest、Vitest 或全量检查。Web 的 `pnpm lint` 包含批量自动修复，不作为普通任务的无副作用检查。仓库 CI 独立配置后端 Ruff/pytest、Web 构建/类型检查/测试及移动端类型检查，不代表本地每次都需要全量执行。
 

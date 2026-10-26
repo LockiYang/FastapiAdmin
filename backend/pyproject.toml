@@ -5,7 +5,6 @@ description = "fastapiadmin后端工程"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "agno==2.5.8",
     "aiofiles==24.1.0",                         # 文件操作
     "alembic==1.18.4",                          # 数据库迁移
     "apscheduler==3.11.0",                      # 定时任务
@@ -32,8 +31,6 @@ dependencies = [
     "ua-parser==1.0.2",                         # 解析 User-Agent 获取 OS/浏览器
     "uvicorn==0.49.0",                          # uvicorn web 框架
     "websockets>=16.0,<17.0",                   # websocket 通信
-    "aiosqlite==0.22.1",                        # 内嵌知识库（app/modules/ai/chat）固定使用 sqlite，故列入核心
-    "openai==2.46.0",
     "pydantic[email]>=2.12.5",
     "cryptography==50.0.0",                  # Fernet 对称加密（存储源密码加密）
     "paramiko==5.0.0",                       # SFTP 协议
@@ -68,6 +65,7 @@ all-db = [
 
 [dependency-groups]
 dev = [
+    "aiosqlite==0.22.1",      # SQLite 临时测试库；生产 SQLite 驱动仍由 sqlite extra 提供
     "fakeredis>=2.21.0,<3",   # 测试：内存 Redis，配合 TESTING
     "pytest==9.0.2",
     "pytest-asyncio>=0.24.0",  # 异步测试支持

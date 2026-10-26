@@ -247,7 +247,6 @@ class UserService:
             ]
         disabled_branches = {
             "Generator": "generator",
-            "AI": "ai",
             "Cronjob": "task",
             "Storage": "storage",
         }

@@ -30,7 +30,6 @@ export const SIDEBAR_COLOR_SCHEME_KEY = "sidebarColorScheme";
 export const THEME_KEY = "theme";
 export const THEME_COLOR_KEY = "themeColor";
 export const GRAY_MODE_KEY = "grayMode";
-export const AI_ENABLED_KEY = "aiEnabled";
 export const PAGE_SWITCHING_ANIMATION_KEY = "pageSwitchingAnimation";
 
 export const ROLE_ROOT = "ADMIN"; // 超级管理员角色
@@ -66,7 +65,6 @@ export const SETTINGS_KEYS = {
   THEME_COLOR: THEME_COLOR_KEY,
   THEME: THEME_KEY,
   GRAY_MODE: GRAY_MODE_KEY,
-  AI_ENABLED: AI_ENABLED_KEY,
   PAGE_SWITCHING_ANIMATION: PAGE_SWITCHING_ANIMATION_KEY,
 } as const;
 

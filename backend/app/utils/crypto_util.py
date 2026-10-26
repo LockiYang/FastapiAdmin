@@ -1,6 +1,6 @@
 """静态数据加密工具（Fernet 对称加密）。
 
-用于统一「落库/落缓存的敏感字段」加密方式（存储源口令、AI 密钥等），
+用于统一「落库/落缓存的敏感字段」加密方式（存储源口令等），
 密钥与 JWT 签名密钥分离：
 
 - 主密钥优先取 ``DATA_ENCRYPTION_KEY``，未配置时由 ``SECRET_KEY`` 经
@@ -21,8 +21,6 @@ from app.core.logger import logger
 
 # HKDF 域分隔：与 SECRET_KEY 用于其它目的时派生出不同密钥
 _INFO = b"fastapiadmin:data-encryption:v1"
-# Fernet token 首字节为版本 0x80，url-safe base64 编码后固定以 "gAAAAA" 开头
-_TOKEN_PREFIX = "gAAAAA"
 
 
 class CryptoUtil:
@@ -73,25 +71,3 @@ class CryptoUtil:
                 continue
         logger.error("敏感数据解密失败，可能原因：DATA_ENCRYPTION_KEY/SECRET_KEY 变更或数据损坏")
         raise RuntimeError("敏感数据解密失败，可能原因：DATA_ENCRYPTION_KEY/SECRET_KEY 变更或数据损坏")
-
-    @classmethod
-    def decrypt_or_keep(cls, value: str | None) -> str:
-        """兼容历史明文的解密：值不是 Fernet 密文格式时原样返回。
-
-        用于加密能力上线前就已存在的明文（如 Redis 中的 AI 密钥缓存，
-        带 TTL，会随用户重新保存自然收敛为密文）。
-        """
-        if not value or not cls.is_token(value):
-            return value or ""
-        return cls.decrypt(value)
-
-    @staticmethod
-    def is_token(value: str) -> bool:
-        """判断字符串是否具备 Fernet 密文的外形（前缀 + 可 base64 解码 + 最小长度）。"""
-        if not value.startswith(_TOKEN_PREFIX) or len(value) < 60:
-            return False
-        try:
-            base64.urlsafe_b64decode(value.encode("utf-8"))
-        except ValueError:
-            return False
-        return True

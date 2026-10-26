@@ -6,9 +6,6 @@
  * @author FastapiAdmin Team
  */
 
-/** AI 相关类型定义 */
-export * from "./ai";
-
 /** 组件相关类型定义 */
 export * from "./component";
 

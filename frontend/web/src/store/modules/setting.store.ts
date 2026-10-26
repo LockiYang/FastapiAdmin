@@ -91,7 +91,6 @@ export const useSettingsStore = defineStore(
 
     // 系统设置 - 持久化
     const grayMode = ref(defaultSettings.grayMode);
-    const userEnableAi = ref(defaultSettings.aiEnabled);
     const pageSwitchingAnimation = ref(defaultSettings.pageSwitchingAnimation);
 
     const getMenuTheme = computed((): MenuThemeType => {
@@ -135,7 +134,6 @@ export const useSettingsStore = defineStore(
       sidebarColorScheme,
       layout,
       grayMode,
-      userEnableAi,
     } as const;
 
     watch(
@@ -327,10 +325,6 @@ export const useSettingsStore = defineStore(
       settingsVisible.value = false;
     }
 
-    function updateUserEnableAi(newValue: boolean): void {
-      userEnableAi.value = newValue;
-    }
-
     function updateGrayMode(newValue: boolean): void {
       grayMode.value = newValue;
     }
@@ -362,7 +356,6 @@ export const useSettingsStore = defineStore(
 
       // 系统设置
       grayMode.value = defaultSettings.grayMode;
-      userEnableAi.value = defaultSettings.aiEnabled;
       pageSwitchingAnimation.value = defaultSettings.pageSwitchingAnimation;
     }
 
@@ -419,7 +412,6 @@ export const useSettingsStore = defineStore(
       themeColor,
       theme,
       grayMode,
-      userEnableAi,
       pageSwitchingAnimation,
 
       // 计算属性
@@ -469,7 +461,6 @@ export const useSettingsStore = defineStore(
       toggleSettingsPanel,
       showSettingsPanel,
       hideSettingsPanel,
-      updateUserEnableAi,
       updateGrayMode,
       updatePageSwitchingAnimation,
       resetSettings,
