@@ -68,7 +68,7 @@
 | `task_cornjob_node` | §8 定时任务 | 可重复执行的节点定义：函数、参数、触发计划、启停和并发策略；是任务恢复时读取的业务配置 | [task/node/model.py](../backend/app/modules/task/node/model.py) |
 | `task_corn_job` | §8 定时任务 | 每次执行的状态、结果和错误记录；`job_id` 是调度标识，节点任务的临时执行 ID 会归一到节点 ID，不是数据库外键 | [task/job/model.py](../backend/app/modules/task/job/model.py) |
 
-节点表定义“执行什么、何时执行”，执行日志表记录“某次执行结果”；APScheduler 的运行计划由 jobstore 保存，见第 4 节。
+节点表定义“执行什么、何时执行”，不是服务器节点；执行日志表记录“某次执行结果”。任务表是唯一配置来源；定时任务采用单机单进程部署（一个后端实例、`WORKERS=1`），运行计划只保存在内存，启动时重新加载。
 
 ### 2.6 存储与传输
 
@@ -123,9 +123,9 @@
 | 表名 | 对应功能 | 建表或使用条件 |
 | --- | --- | --- |
 | `alembic_version` | 数据库结构迁移版本 | Alembic 执行升级、标记版本等操作时维护；不是产品版本管理 |
-| `apscheduler_jobs` | §8 调度器的 SQLAlchemy jobstore | 调度器初始化并启动该 jobstore 时可创建；保存调度状态，不是节点定义或执行日志 |
+| `apscheduler_jobs` | 已移除的 SQLAlchemy jobstore 历史表 | 当前不再创建或访问；旧部署可能存在，待确认后删除，未执行 |
 
-当前调度器默认 jobstore 是 Redis，同时配置 SQLAlchemy 和内存 jobstore。即使默认任务不写关系库调度表，节点和执行日志仍可写业务表；表为空不能直接说明任务模块未工作。
+当前只使用 MemoryJobStore 和线程池。任务定义持久化在 `task_cornjob_node`，执行记录持久化在 `task_corn_job`；运行计划不再写数据库或 Redis。
 
 ### 4.2 已移除 AI 模块：待删除表和历史数据
 
@@ -154,7 +154,40 @@
 | Redis | `ai_model_config:items:*`、`ai_model_config:active:*`、`ai_model_config:lock:*` | 待清理键，未执行 |
 | 后台登录会话和浏览器缓存 | 旧会话、工作标签可能缓存菜单或旧地址；清理菜单后重新登录、清理相关标签刷新 | 未执行 |
 
-`sys_version`、`alembic_version`、`apscheduler_jobs` 及 29 张业务 ORM 表均不属于待删除表。旧会话以用户名关联后台账号，不需要删除 `sys_user`。本次未连接数据库或 Redis，未生成或执行删表迁移。
+`sys_version`、`alembic_version` 及 29 张业务 ORM 表均不属于 AI 模块待删除表。`apscheduler_jobs` 的后续单机重构处理见 §4.3。旧会话以用户名关联后台账号，不需要删除 `sys_user`。本次未连接数据库或 Redis，未生成或执行删表迁移。
+
+### 4.3 定时任务单机化：选主数据清理范围
+
+**状态：选主、续期、候选争抢与故障接管代码已移除；经用户授权，开发库任务字段迁移已核对到 `6e9cd5b5bb23`，Redis 未连接或清理。** 经模型、迁移与调度代码核对，多节点选主只使用 Redis 锁，仓库没有专用的服务器节点表、主节点表或选主记录表，选主本身无专用表可删；以下历史 JobStore 数据因本次进一步改为内存调度而列为待清理。
+
+| 表或存储 | 处理结果 | 原因及清理状态 |
+| --- | --- | --- |
+| `task_cornjob_node` | 保留表和数据 | 保存任务函数、参数及执行计划，不是服务器节点 |
+| `task_corn_job` | 保留表和数据 | 保存单机任务执行日志 |
+| `apscheduler_jobs` | 待删除，未执行 | SQLAlchemy jobstore 已移除；停用旧部署并核对任务定义后可删除 |
+| Redis `fastapiadmin:scheduler:lock` | 不再创建或访问 | 旧选主锁带 30 秒 TTL，旧进程全部停止后自然过期；未手动删除 |
+| Redis `scheduler_job_lock` | 移除废弃键枚举 | 当前代码原本已无调用；如历史环境遗留该键，可在旧进程全部停止后定向删除，未执行 |
+| Redis `apscheduler.jobs`、`apscheduler.run_times` | 待定向删除，未执行 | 旧 jobstore 数据，当前不再读写；须停用旧进程并确认未被其他应用共用后清理 |
+
+调度器监控只读正式计划和日志，支持全局暂停/恢复；任务管理统一维护定义、启停与手动执行。启用 task 模块时要求 `WORKERS=1`，部署只运行一个后端实例；不再维护主备状态或提供自动接管。
+
+### 4.4 单机调度重构：字段迁移
+
+- `task_cornjob_node` 移除 `jobstore`、`executor` 模型字段与 API/UI 选项。开发库旧列已删除并核对；其余任务定义保留。
+- `task_corn_job` 新增可空 `started_time`、`finished_time`、`duration_ms`；历史日志的新增时间和耗时允许为空。移除重复的 `next_run_time` 和调度快照 `job_state` 模型字段；开发库旧列已删除并核对。
+- 菜单种子将定时任务的“节点管理”改为“任务管理”，保留 `route_name=Node` 和原组件路径；移除 `module_task:cronjob:job:task` 权限种子。旧 `sys_menu` 的名称与该权限及 `sys_role_menus` 关联仅标记待定向清理，未修改数据库；非空表不会被新种子覆盖。
+- 用户确认开发服务正在运行，工作区出现自动生成的迁移 `2026_10_26_2319_6e9cd5b5bb23.py`。经授权执行 `main.py upgrade --env=dev` 后核对：开发库版本为 `6e9cd5b5bb23`，三个新增日志字段存在、四个旧字段已删除。未另外启动或重启服务。其他部署仍须按实际库结构审核并应用迁移。
+- 当前 dev 自动迁移拦截只匹配 `op.drop_*`，无法覆盖该迁移中的 `batch_op.drop_column`；不能依赖它阻止删列。本次未修改通用迁移机制，迁移文件原样保留。
+
+新增字段审核参考 SQL（仅针对缺少这些列的旧库，实际迁移应按部署数据库生成）：
+
+```sql
+ALTER TABLE task_corn_job ADD COLUMN started_time TIMESTAMP NULL;
+ALTER TABLE task_corn_job ADD COLUMN finished_time TIMESTAMP NULL;
+ALTER TABLE task_corn_job ADD COLUMN duration_ms FLOAT NULL;
+```
+
+重启不补跑停机期间错过的任务，过期 date 计划跳过；interval 有开始时间则沿用，否则从启动时重新计时。运行中调度使用统一的 60 秒迟到宽限。上次异常退出留下的执行中日志在启动时标记为已取消，不自动重试。
 
 ## 5. PRD 中没有独立业务表的功能
 
@@ -181,7 +214,7 @@
 | 启用 storage 时的种子 | `task_storage_node` |
 | 无预置种子的 ORM 表 | 其余 ORM 表由相应操作写入；没有种子不代表不建表 |
 
-种子位于 `backend/sql/<表名>.json`，目标表已有数据就整表跳过。APScheduler 的表由自身初始化机制维护，不通过上述 JSON 导入。已移除 AI 模块的历史清理范围见 §4.2。
+种子位于 `backend/sql/<表名>.json`，目标表已有数据就整表跳过。当前不再初始化 APScheduler 持久化表或 Redis 计划；启动时从任务定义表重建内存计划。已移除 AI 模块的历史清理范围见 §4.2。
 
 ## 7. 维护说明
 

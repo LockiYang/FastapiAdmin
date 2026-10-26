@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -15,7 +17,6 @@ class SchedulerStatusSchema(BaseModel):
     is_running: bool = Field(..., description="是否运行中")
     job_count: int = Field(..., description="调度器任务数量")
     code_exec_enabled: bool = Field(default=False, description="是否允许执行用户提交的代码块(SCHEDULER_ALLOW_CODE_EXEC)")
-    unschedulable_count: int = Field(default=0, description="已注册但当前不可执行的任务数（>0 时列表页会给出原因）")
 
 
 class SchedulerJobSchema(BaseModel):
@@ -30,19 +31,6 @@ class SchedulerJobSchema(BaseModel):
     unschedulable_reason: str | None = Field(default=None, description="不可执行原因（含修复建议）")
 
 
-class SchedulerJobModifySchema(BaseModel):
-    """调度器任务属性修改模型（仅允许白名单属性）"""
-
-    name: str | None = Field(default=None, min_length=1, max_length=128, description="任务名称")
-    coalesce: bool | None = Field(default=None, description="是否合并错过的执行")
-    max_instances: int | None = Field(default=None, ge=1, le=100, description="最大并发实例数")
-    misfire_grace_time: int | None = Field(default=None, ge=0, le=86400, description="错过执行的宽限时间(秒)")
-
-    def to_changes(self) -> dict:
-        """转换为调度器属性参数（忽略未传字段）"""
-        return self.model_dump(exclude_none=True)
-
-
 class JobCreateSchema(BaseModel):
     """执行日志创建模型"""
 
@@ -50,8 +38,9 @@ class JobCreateSchema(BaseModel):
     job_name: str | None = Field(default=None, max_length=128, description="任务名称")
     trigger_type: str | None = Field(default=None, max_length=32, description="触发方式")
     status: int = Field(default=0, ge=0, le=5, description="执行状态(0:待执行 1:执行中 2:成功 3:失败 4:超时 5:已取消)")
-    next_run_time: str | None = Field(default=None, description="下次执行时间")
-    job_state: str | None = Field(default=None, description="任务状态信息")
+    started_time: datetime | None = Field(default=None, description="开始执行时间")
+    finished_time: datetime | None = Field(default=None, description="完成执行时间")
+    duration_ms: float | None = Field(default=None, description="执行耗时毫秒")
     result: str | None = Field(default=None, description="执行结果")
     error: str | None = Field(default=None, description="错误信息")
 
@@ -79,8 +68,8 @@ class JobUpdateSchema(BaseModel):
     """执行日志更新模型"""
 
     status: int | None = Field(default=None, ge=0, le=5, description="执行状态(0:待执行 1:执行中 2:成功 3:失败 4:超时 5:已取消)")
-    next_run_time: str | None = Field(default=None, description="下次执行时间")
-    job_state: str | None = Field(default=None, description="任务状态信息")
+    finished_time: datetime | None = Field(default=None, description="完成执行时间")
+    duration_ms: float | None = Field(default=None, description="执行耗时毫秒")
     result: str | None = Field(default=None, description="执行结果")
     error: str | None = Field(default=None, description="错误信息")
 

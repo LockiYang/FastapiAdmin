@@ -232,12 +232,12 @@ API 使用现有 `request`，通常从 `@utils` 导入；类型使用 `ApiRespon
 
 | 能力 | 当前实现与开发注意事项 |
 | --- | --- |
-| 定时调度 | APScheduler，默认使用 RedisJobStore，同时提供 SQLAlchemy、内存 jobstore；Redis 锁协调多个 worker 的调度持有者。节点配置与任务恢复见 `core/ap_scheduler.py`。 |
+| 定时调度 | APScheduler，仅使用 MemoryJobStore 与一个线程池；任务表为唯一配置来源，启动先加载定义再调度，事务提交后同步内存计划。仅支持一个后端实例、`WORKERS=1`。监控只读计划与日志、支持全局暂停/恢复；任务管理统一修改配置。 |
 | 内置任务 | `builtin:<模块名>[.<函数名>]` 从 `modules/task/node/handlers` 解析处理器；原始代码块受 `SCHEDULER_ALLOW_CODE_EXEC` 控制，默认关闭。 |
 | 文件存储 | `modules/storage/core` 适配本地、FTP/FTPS、SFTP 及 S3、OSS、COS、OBS 等存储；浏览、传输、流程模块调用适配层。 |
 | 传输任务 | 记录任务与步骤，在进程内异步执行，通过 SSE 推送状态。不能据此假定已有独立分布式任务队列或进程退出后自动续跑。 |
 
-Redis 除登录会话、字典和参数缓存外，还用于验证码、调度选主锁、默认调度任务存储与 SSE 跨进程 Pub/Sub；SSE 连接及事件分发见 `core/sse_manager.py`。Redis 初始化连接失败会中止启动，不能把它当作可有可无的缓存。
+Redis 除登录会话、字典和参数缓存外，还用于验证码与 SSE 跨进程 Pub/Sub；不再保存调度计划。SSE 连接及事件分发见 `core/sse_manager.py`。Redis 初始化连接失败会中止启动，不能把它当作可有可无的缓存。
 
 开发异步功能要明确事务提交时机、进度状态、取消与失败处理、断连资源释放；是否支持恢复应以实际实现为准。存储和定时任务是独立模块，不因页面历史位置而互相强制依赖。
 

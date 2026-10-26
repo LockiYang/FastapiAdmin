@@ -1,4 +1,4 @@
-<!-- 定时任务节点：Art + useTable -->
+<!-- 定时任务任务：Art + useTable -->
 <template>
   <div class="fa-full-height">
     <FaSearchBar
@@ -78,26 +78,6 @@
               :show-submit="false"
               class="crud-dialog-art-form node-splitter-art-form"
             >
-              <template #jobstore>
-                <ElSelect v-model="formData.jobstore" placeholder="请选择存储器">
-                  <ElOption
-                    v-for="item in jobStoreOptions"
-                    :key="item.value"
-                    :label="item.label"
-                    :value="item.value"
-                  />
-                </ElSelect>
-              </template>
-              <template #executor>
-                <ElSelect v-model="formData.executor" placeholder="请选择执行器">
-                  <ElOption
-                    v-for="item in jobExecutorOptions"
-                    :key="item.value"
-                    :label="item.label"
-                    :value="item.value"
-                  />
-                </ElSelect>
-              </template>
               <template #args>
                 <div class="flex flex-col gap-2">
                   <div
@@ -266,23 +246,6 @@ import type { EditorConfiguration } from "codemirror";
 import "codemirror/mode/python/python.js";
 import "codemirror/theme/dracula.css";
 
-/** 可选对象字面量 */
-type OptionItem = { label: string; value: string };
-
-/** 存储器选项（对应 ap_scheduler jobstores 配置，不再依赖字典） */
-const jobStoreOptions: OptionItem[] = [
-  { label: "默认(Redis)", value: "default" },
-  { label: "数据库(Sqlalchemy)", value: "sqlalchemy" },
-  { label: "内存(Memory)", value: "memory" },
-];
-
-/** 执行器选项（对应 ap_scheduler executors 配置：default=AsyncIOExecutor / threadpool / processpool） */
-const jobExecutorOptions: OptionItem[] = [
-  { label: "异步协程(事件循环)", value: "default" },
-  { label: "线程池", value: "threadpool" },
-  { label: "进程池", value: "processpool" },
-];
-
 type NodeSearchForm = {
   name?: string;
   code?: string;
@@ -333,18 +296,18 @@ function formatNodeTriggerCell(row: NodeTable): string {
 
 const nodeSearchItems = computed<SearchFormItem[]>(() => [
   {
-    label: "节点名称",
+    label: "任务名称",
     key: "name",
     type: "input",
-    placeholder: "请输入节点名称",
+    placeholder: "请输入任务名称",
     clearable: true,
     span: 6,
   },
   {
-    label: "节点编码",
+    label: "任务编码",
     key: "code",
     type: "input",
-    placeholder: "请输入节点编码",
+    placeholder: "请输入任务编码",
     clearable: true,
     span: 6,
   },
@@ -379,7 +342,7 @@ function onTableSelectionChange(rows: NodeTable[]) {
 async function deleteNodeRow(id: number | undefined, name: string | number) {
   if (id == null) return;
   try {
-    await confirmDelete(`确定删除节点「${name}」吗？`);
+    await confirmDelete(`确定删除任务「${name}」吗？`);
     await NodeAPI.deleteNode([id]);
     faTableRef.value?.elTableRef?.clearSelection();
     await refreshRemove();
@@ -530,13 +493,13 @@ const {
       { type: "globalIndex", width: 56, label: "序号" },
       {
         prop: "name",
-        label: "节点名称",
+        label: "任务名称",
         minWidth: 140,
         showOverflowTooltip: true,
       },
       {
         prop: "code",
-        label: "节点编码",
+        label: "任务编码",
         minWidth: 100,
         showOverflowTooltip: true,
       },
@@ -678,8 +641,6 @@ const formData = ref<NodeForm>({
   id: undefined,
   name: "",
   code: undefined,
-  jobstore: "default",
-  executor: "default",
   func: defaultCodeBlock,
   args: undefined,
   kwargs: undefined,
@@ -701,8 +662,8 @@ const dialogVisible = reactive({
 });
 
 const rules = reactive({
-  name: [{ required: true, message: "请输入节点名称", trigger: "blur" }],
-  code: [{ required: true, message: "请输入节点编码", trigger: "blur" }],
+  name: [{ required: true, message: "请输入任务名称", trigger: "blur" }],
+  code: [{ required: true, message: "请输入任务编码", trigger: "blur" }],
   trigger_args: [{ required: true, message: "请先配置执行计划参数", trigger: "blur" }],
 });
 
@@ -716,18 +677,18 @@ const nodeDialogFormItems = computed<FormItem[]>(() => {
 
   return [
     {
-      label: "节点名称",
+      label: "任务名称",
       key: "name",
       type: "input",
       span: 24,
-      props: { placeholder: "请输入节点名称", maxlength: 50 },
+      props: { placeholder: "请输入任务名称", maxlength: 50 },
     },
     {
-      label: "节点编码",
+      label: "任务编码",
       key: "code",
       type: "input",
       span: 24,
-      props: { placeholder: "请输入节点编码", maxlength: 32 },
+      props: { placeholder: "请输入任务编码", maxlength: 32 },
     },
     {
       label: "执行计划",
@@ -782,20 +743,6 @@ const nodeDialogFormItems = computed<FormItem[]>(() => {
       },
     },
     {
-      label: "存储器",
-      key: "jobstore",
-      type: "select",
-      span: 24,
-      placeholder: "",
-    },
-    {
-      label: "执行器",
-      key: "executor",
-      type: "select",
-      span: 24,
-      placeholder: "",
-    },
-    {
       label: "位置参数",
       key: "args",
       type: "input",
@@ -834,13 +781,11 @@ const initialFormData: Partial<NodeForm> = {
   id: undefined,
   name: "",
   code: undefined,
-  jobstore: "default",
-  executor: "default",
   func: defaultCodeBlock,
   args: undefined,
   kwargs: undefined,
   coalesce: false,
-  max_instances: 5,
+  max_instances: 1,
   trigger: undefined,
   trigger_args: undefined,
   start_date: undefined,
@@ -875,7 +820,7 @@ async function handleOpenDialog(type: "create" | "update", id?: number) {
   dialogVisible.type = type;
   if (id) {
     const response = await NodeAPI.detailNode(id);
-    dialogVisible.title = "修改节点";
+    dialogVisible.title = "修改任务";
     Object.assign(formData.value, response.data.data);
     const data = response.data.data;
     argsList.value = data.args ? data.args.split(",").map((v: string) => v.trim()) : [];
@@ -886,7 +831,7 @@ async function handleOpenDialog(type: "create" | "update", id?: number) {
         }))
       : [];
   } else {
-    dialogVisible.title = "新增节点";
+    dialogVisible.title = "新增任务";
     formData.value.id = undefined;
     argsList.value = [];
     kwargsList.value = [];
@@ -911,12 +856,10 @@ async function handleSubmit() {
       const trig = formData.value.trigger;
       const kvList = kwargsList.value.filter((v) => v.key.trim());
       try {
-        // 显式组装：执行计划随节点定义一起保存，trigger 为空则不排程
+        // 显式组装：执行计划随任务定义一起保存，trigger 为空则不排程
         const submitData = {
           name: formData.value.name,
           code: formData.value.code || undefined,
-          jobstore: formData.value.jobstore,
-          executor: formData.value.executor,
           func: formData.value.func,
           coalesce: formData.value.coalesce,
           max_instances: formData.value.max_instances,

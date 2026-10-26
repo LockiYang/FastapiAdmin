@@ -9,7 +9,7 @@ from app.core.logger import logger
 def create_sync_engine(db_url: str = settings.DB_URI) -> Engine:
     """创建同步数据库引擎。
 
-    同步引擎仅供同步组件使用：APScheduler SQLAlchemyJobStore、代码生成器 Inspector
+    同步引擎仅供同步组件使用：定时任务线程池的执行日志、代码生成器 Inspector
     （后者经 asyncio.to_thread 在线程池中调用，见 gencode/crud.py 的 _sync_* 方法）。
     请求侧一律走异步会话，勿在事件循环内直接使用本引擎。
 

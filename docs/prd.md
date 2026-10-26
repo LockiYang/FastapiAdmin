@@ -442,24 +442,27 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 
 ### 8.1 业务描述
 
-管理员维护可按计划或手动运行的任务节点，查看执行日志，并对调度器做启停。节点描述「做什么、何时做」；执行日志描述「某一次跑得怎样」。
+管理员维护可按计划或手动运行的任务，查看执行日志，并对本机调度器做全局暂停或恢复。任务定义描述「做什么、何时做」；执行日志描述「某一次跑得怎样」。
 
 ### 8.2 业务规则
 
+- 采用单机单进程部署：只运行一个后端实例，启用 task 模块时 `WORKERS` 必须为 `1`。调度器由当前进程直接启动执行，不提供选主、主备切换或故障接管；节点管理中的节点指任务定义。
 - 节点编码唯一。`func` 为处理函数：可以是 `builtin:` 内置处理器，也可以是代码块。代码块能否执行由 `SCHEDULER_ALLOW_CODE_EXEC` 决定。
 - 触发器：`cron`、`interval`、`date`。填写了触发器就必须填写触发参数。留空则只保存节点，通过手动执行接口运行。
 - `coalesce` 合并错过的执行。`max_instances` 限制并发实例，默认 1。
 - 节点状态沿用 `0` 启用、`1` 停用。
 - 执行状态：`0` 待执行，`1` 执行中，`2` 成功，`3` 失败，`4` 超时，`5` 取消。
 - 列表可以带出下一次运行时间、最近一次运行时间，以及当前不能调度的原因。
-- 调度器可以启动、暂停、恢复、关闭、清空任务和查看控制台。单个任务可以暂停、恢复、立即运行、修改触发参数、移除。
+- 任务表是唯一配置来源，应用启动先加载任务再调度，退出时关闭；配置事务提交后更新内存计划。任务编辑、启停、删除和手动执行统一在任务管理，监控只读计划及日志，支持全局暂停/恢复。
+- 统一使用内存 JobStore 与线程池，不提供存储器或执行器选择。重启跳过停机期间错过的执行和过期一次性任务；间隔计划有开始时间则沿用，没有则从启动后重新计时。
+- 执行日志直接记录任务 ID、名称、触发来源、开始/结束时间、耗时和结果，不依赖执行后反查调度器。上次异常退出遗留的执行中日志在启动时标记为已取消，不自动重试。
 
 ### 8.3 数据模型
 
 | 模型 | 关键字段与执行流程 |
 | --- | --- |
 | `task_cornjob_node` | `code` 为唯一节点编码；`func`、`args` / `kwargs` 定义执行内容；`trigger` / `trigger_args` 与 `start_date` / `end_date` 定义计划，`status` 控制启停，`coalesce` / `max_instances` 控制合并与并发 |
-| `task_corn_job` | `job_id` 关联调度任务标识，节点执行记录归一到所属节点 ID；`trigger_type` 区分计划或手动执行，`status` 记录执行阶段，`result` / `error` 保存结果与失败原因 |
+| `task_corn_job` | `job_id` 关联调度任务标识，节点执行记录归一到所属节点 ID；`trigger_type` 区分计划或手动执行，`status` 记录执行阶段，`started_time` / `finished_time` / `duration_ms` 记录开始结束和耗时，`result` / `error` 保存结果与失败原因 |
 
 节点定义可重复执行的计划，执行日志记录每次结果；`job_id` 是调度标识，不是数据库外键。
 
@@ -471,21 +474,17 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 | --- | --- | --- |
 | GET | `/task/cronjob/node/options` | 节点下拉 |
 | POST | `/task/cronjob/node/execute/{id}` | 手动执行 |
-| POST | `/task/cronjob/node/clear` | 清空节点 |
+| DELETE | `/task/cronjob/node/clear` | 清空节点 |
 
-调度器与执行日志：
+调度器与执行日志前缀 `/task/cronjob/job`：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/task/cronjob/job/scheduler/status` | 调度器状态 |
-| GET | `/task/cronjob/job/scheduler/jobs` | 当前任务清单 |
-| GET | `/task/cronjob/job/scheduler/console` | 控制台 |
-| POST | `.../scheduler/start`、`pause`、`resume`、`shutdown` | 启停调度器 |
-| DELETE | `.../scheduler/jobs/clear` | 清空调度任务 |
-| POST / PUT / DELETE | `.../task/pause/{job_id}`、`resume`、`run`、`modify`、`remove` | 控制单个任务 |
-| GET / DELETE | `/task/cronjob/job/log/list`、`detail/{id}`、`delete` | 执行日志 |
+| GET | `/scheduler/status`、`/scheduler/jobs` | 本机状态与正式计划 |
+| POST | `/scheduler/pause`、`/scheduler/resume` | 全局暂停、恢复 |
+| GET | `/log/list`、`/log/detail/{id}` | 执行记录列表、详情 |
+| DELETE | `/log/delete` | 删除执行记录 |
 
----
 
 ## 9. 存储与传输
 

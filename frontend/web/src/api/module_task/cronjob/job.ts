@@ -17,13 +17,6 @@ const JobAPI = {
     });
   },
 
-  startScheduler() {
-    return request<ApiResponse>({
-      url: `${API_PATH}/scheduler/start`,
-      method: "post",
-    });
-  },
-
   pauseScheduler() {
     return request<ApiResponse>({
       url: `${API_PATH}/scheduler/pause`,
@@ -35,63 +28,6 @@ const JobAPI = {
     return request<ApiResponse>({
       url: `${API_PATH}/scheduler/resume`,
       method: "post",
-    });
-  },
-
-  shutdownScheduler() {
-    return request<ApiResponse>({
-      url: `${API_PATH}/scheduler/shutdown`,
-      method: "post",
-    });
-  },
-
-  clearAllJobs() {
-    return request<ApiResponse>({
-      url: `${API_PATH}/scheduler/jobs/clear`,
-      method: "delete",
-    });
-  },
-
-  getSchedulerConsole() {
-    return request<ApiResponse<string>>({
-      url: `${API_PATH}/scheduler/console`,
-      method: "get",
-    });
-  },
-
-  pauseJob(jobId: string) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/task/pause/${jobId}`,
-      method: "post",
-    });
-  },
-
-  resumeJob(jobId: string) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/task/resume/${jobId}`,
-      method: "post",
-    });
-  },
-
-  runJobNow(jobId: string) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/task/run/${jobId}`,
-      method: "post",
-    });
-  },
-
-  removeJob(jobId: string) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/task/remove/${jobId}`,
-      method: "delete",
-    });
-  },
-
-  modifyJob(jobId: string, body: Record<string, any>) {
-    return request<ApiResponse>({
-      url: `${API_PATH}/task/modify/${jobId}`,
-      method: "put",
-      data: body,
     });
   },
 
@@ -125,6 +61,7 @@ export interface SchedulerStatus {
   status: string;
   is_running: boolean;
   job_count: number;
+  code_exec_enabled: boolean;
 }
 
 export interface SchedulerJob {
@@ -133,6 +70,8 @@ export interface SchedulerJob {
   trigger: string;
   next_run_time?: string;
   status: number;
+  schedulable: boolean;
+  unschedulable_reason?: string;
 }
 
 export interface JobLogPageQuery extends PageQuery, UserByQueryParams {
@@ -146,8 +85,9 @@ export interface JobLogTable extends BaseType {
   job_id: string;
   job_name?: string;
   trigger_type?: string;
-  next_run_time?: string;
-  job_state?: string;
+  started_time?: string;
+  finished_time?: string;
+  duration_ms?: number;
   result?: string;
   error?: string;
   status?: number;

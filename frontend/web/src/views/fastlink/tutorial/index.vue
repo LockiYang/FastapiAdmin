@@ -182,7 +182,7 @@
                               </ElLink>
                               ·
                               <ElLink href="#page-cronnode" type="primary" underline="never">
-                                节点管理
+                                任务管理
                               </ElLink>
                               ·
                               <ElLink href="#page-workflow" type="primary" underline="never">
@@ -1102,7 +1102,7 @@ const MANUAL_TOC: ManualModule[] = [
     title: "三、任务管理",
     pages: [
       { anchor: "page-cronjob", title: "调度器监控" },
-      { anchor: "page-cronnode", title: "节点管理" },
+      { anchor: "page-cronnode", title: "任务管理" },
       { anchor: "page-workflow", title: "流程编排" },
       { anchor: "page-nodetype", title: "节点类型" },
     ],

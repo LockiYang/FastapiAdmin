@@ -1,17 +1,18 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
+from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from apscheduler.job import Job
-from apscheduler.jobstores.base import ConflictingIdError, JobLookupError
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from croniter import croniter
-from sqlalchemy import false, select
+from sqlalchemy import event, false, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.ap_scheduler import SchedulerUtil, scheduler
+from app.core.ap_scheduler import SchedulerUtil
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
 from app.core.logger import logger
@@ -27,9 +28,6 @@ from .schema import (
     NodeRunResultSchema,
     NodeUpdateSchema,
 )
-
-# APScheduler 正式任务 job id = 节点 id；手动执行用独立临时 id，避免覆盖正式计划
-_MANUAL_JOB_PREFIX = ":manual:"
 
 
 class NodeService:
@@ -84,16 +82,11 @@ class NodeService:
         if exist_obj:
             raise CustomException(msg="创建失败，该节点已存在")
 
-        _validate_node_plan(data.trigger, data.trigger_args)
+        validate_node_definition(data)
         obj = await NodeCRUD(self.auth, self.db).create_obj_crud(data=data)
         if not obj:
             raise CustomException(msg="创建失败")
-        # 保存即注册：配置了触发方式则注册/刷新 APScheduler 任务
-        try:
-            register_node_job(obj)
-        except (ValueError, CustomException) as e:
-            await NodeCRUD(self.auth, self.db).delete_obj_crud(ids=[obj.id])
-            raise CustomException(msg=f"创建成功但任务注册失败: {e!s}") from e
+        self._sync_after_commit(obj)
         out = NodeOutSchema.model_validate(obj)
         await self._enrich_runtime([out])
         return out
@@ -103,18 +96,12 @@ class NodeService:
         if not exist_obj:
             raise CustomException(msg="更新失败，该节点不存在")
 
-        # 预先校验新计划参数，避免 DB 更新后注册失败造成定义与调度不一致
-        if data.trigger is not None:
-            _validate_node_plan(data.trigger, data.trigger_args)
-
-        obj = await NodeCRUD(self.auth, self.db).update_obj_crud(id=id, data=data)
+        validate_node_definition(data)
+        # 编辑表单是完整定义，显式写入空值才能取消旧计划或清空参数。
+        obj = await NodeCRUD(self.auth, self.db).update(id=id, data=data.model_dump())
         if not obj:
             raise CustomException(msg="更新失败")
-        # 编辑即生效：按最新定义重新注册（代码/参数/计划任一变化都会同步到调度器）
-        try:
-            register_node_job(obj)
-        except (ValueError, CustomException) as e:
-            raise CustomException(msg=f"更新成功但任务注册失败: {e!s}") from e
+        self._sync_after_commit(obj)
         out = NodeOutSchema.model_validate(obj)
         await self._enrich_runtime([out])
         return out
@@ -126,41 +113,54 @@ class NodeService:
             exist_obj = await NodeCRUD(self.auth, self.db).get_obj_by_id_crud(id=mid)
             if not exist_obj:
                 raise CustomException(msg="删除失败，该节点不存在")
-            unregister_node_job(node_id=mid)
         await NodeCRUD(self.auth, self.db).delete_obj_crud(ids=ids)
+        for node_id in ids:
+            self._after_commit(lambda node_id=node_id: SchedulerUtil.remove_job(node_id))
 
     async def clear(self) -> None:
-        NodeCRUD(self.auth, self.db)
-        SchedulerUtil.clear_jobs()
+        # 清空仅清理已软删除的定义，不修改仍启用任务的运行计划。
         await NodeCRUD(self.auth, self.db).clear_obj_crud()
 
     async def execute(self, id: int) -> NodeRunResultSchema:
-        """手动执行一次：基于节点当前定义创建临时 job，不占用/覆盖正式计划。"""
+        """唯一手动执行入口；与定时执行共用执行函数及日志。"""
         obj = await NodeCRUD(self.auth, self.db).get_obj_by_id_crud(id=id)
         if not obj:
-            raise CustomException(msg="执行失败，该节点不存在")
-        try:
-            temp_job_id = run_node_once(node=obj)
-        except (ValueError, CustomException) as e:
-            raise CustomException(msg=f"执行失败: {e!s}") from e
-        return NodeRunResultSchema(job_id=temp_job_id, status="executed", trigger="manual")
+            raise CustomException(msg="执行失败，该任务不存在")
+        definition = task_definition(obj)
+        job_id = f"{id}:manual:{uuid4().hex}"
+        self._after_commit(lambda: SchedulerUtil.add_job(definition, None, job_id=job_id))
+        return NodeRunResultSchema(job_id=job_id, status="queued", trigger="manual")
 
     async def batch_set_status(self, ids: list[int], status: int) -> None:
-        """批量启停：0=启用 1=停用。启停直接作用于调度器 job（DB 与运行态一致）。"""
+        """启停先写入数据库，事务提交后同步运行计划。"""
         if not ids:
             raise CustomException(msg="请选择要操作的数据")
-        for mid in ids:
-            obj = await NodeCRUD(self.auth, self.db).get_obj_by_id_crud(id=mid)
-            if not obj:
-                continue
-            if status == 1:
-                unregister_node_job(node_id=mid)
-            else:
-                try:
-                    register_node_job(obj)
-                except (ValueError, CustomException) as e:
-                    raise CustomException(msg=f"启用任务失败: {e!s}") from e
+        nodes = []
+        for node_id in ids:
+            node = await NodeCRUD(self.auth, self.db).get_obj_by_id_crud(id=node_id)
+            if not node:
+                raise CustomException(msg="任务不存在")
+            if status == 0:
+                validate_node_definition(node)
+            nodes.append(node)
         await NodeCRUD(self.auth, self.db).set(ids=ids, status=status)
+        for node in nodes:
+            node.status = status
+            self._sync_after_commit(node)
+
+    def _after_commit(self, action) -> None:
+        # 请求事务失败时不改内存计划；回调使用任务快照，不持有 ORM 会话。
+        event.listen(self.db.sync_session, "after_commit", lambda _session: action(), once=True)
+
+    def _sync_after_commit(self, node: NodeModel) -> None:
+        plan = prepare_node_job(node)
+        node_id = str(node.id)
+        def apply():
+            if plan is None:
+                SchedulerUtil.remove_job(node_id)
+            else:
+                SchedulerUtil.add_job(*plan)
+        self._after_commit(apply)
 
     # ── 运行时信息补充（下次运行/最近运行，来自调度器与执行日志）──────────
     async def _enrich_runtime(self, items: list[NodeOutSchema]) -> None:
@@ -180,15 +180,9 @@ class NodeService:
             if job:
                 item.next_run_time = str(job.next_run_time) if getattr(job, "next_run_time", None) else None
 
-            # 可调度状态（t15）：区分「已启用且可执行」与「已启用但当前不会执行」，
-            # 并把后者以 WARN 打出（带节点标识），避免升级/开关调整后的静默失效
             schedulable, reason = SchedulerUtil.describe_schedulability(item.func)
             item.schedulable = schedulable
             item.unschedulable_reason = None if schedulable else reason
-            if not schedulable and item.status == 0:
-                _warn_unschedulable_node(node_id=node_id, name=item.name, reason=reason)
-            elif schedulable:
-                _clear_unschedulable_warning(node_id)
             stmt = (
                 select(JobModel)
                 .where(JobModel.job_id == node_id, JobModel.is_deleted == false())
@@ -199,44 +193,6 @@ class NodeService:
             if row:
                 item.last_run_time = row.created_time.isoformat() if row.created_time else None
                 item.last_run_status = row.status
-
-
-# 「已启用但不可调度」的告警去重：同一节点 + 同一原因只告警一次，
-# 避免列表接口被反复调用时刷屏；节点恢复可调度时清除记录（见 _enrich_runtime）。
-_WARNED_UNSCHEDULABLE: dict[str, str] = {}
-
-
-def _warn_unschedulable_node(*, node_id: str, name: str | None, reason: str | None) -> None:
-    """对「已启用但当前不可调度」的节点打一次 WARN（带节点标识与原因）。
-
-    参数:
-    - node_id (str): 节点 ID（调度器 job id）。
-    - name (str | None): 节点名称。
-    - reason (str | None): 不可调度原因。
-
-    返回:
-    - None
-    """
-    text = reason or ""
-    if _WARNED_UNSCHEDULABLE.get(node_id) == text:
-        return
-    _WARNED_UNSCHEDULABLE[node_id] = text
-    logger.warning(f"节点任务不可调度（已启用但不会执行）: id={node_id} name={name!r} 原因={reason}")
-
-
-def _clear_unschedulable_warning(node_id: str) -> None:
-    """节点恢复可调度后清除其告警去重记录（下次再失效仍会告警）。
-
-    参数:
-    - node_id (str): 节点 ID。
-
-    返回:
-    - None
-    """
-    _WARNED_UNSCHEDULABLE.pop(node_id, None)
-
-
-# ── NodeModel 封装的调度操作（模块级函数，供 service / 启动自愈复用）────
 
 
 def _build_job_trigger(
@@ -280,6 +236,8 @@ def _build_job_trigger(
         if len(fields) != 5:
             raise ValueError("无效的 interval 表达式，格式: 秒 分 时 天 周")
         second, minute, hour, day, week = tuple(int(field) if field != "*" else 0 for field in fields)
+        if min(second, minute, hour, day, week) < 0 or not any((second, minute, hour, day, week)):
+            raise ValueError("执行间隔必须大于零，且各项不能为负数")
         return IntervalTrigger(
             weeks=week,
             days=day,
@@ -302,120 +260,49 @@ def _build_job_trigger(
     raise ValueError(f"不支持的触发方式: {trigger}")
 
 
-def _validate_node_plan(
-    trigger: str | None,
-    trigger_args: str | None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> None:
-    """保存前预校验计划参数，避免 DB 落库后再注册失败。"""
-    if not trigger:
-        return
-    _build_job_trigger(trigger, trigger_args, start_date, end_date)
-
-
-def _add_job_with_trigger(
-    job_info: NodeModel,
-    trigger,
-    *,
-    job_id_override: str | None = None,
-    name_suffix: str = "",
-) -> Job:
-    """将 NodeModel 封装的任务添加到 APScheduler 调度器。"""
-    code_block = job_info.func
-    if not code_block or not code_block.strip():
-        raise ValueError("任务代码块不能为空")
-    # 可调度性判定（单一事实来源）：builtin: 引用走白名单、不经 exec，因此**开关关闭时也允许注册**；
-    # 只有"原始代码块"才会被 SCHEDULER_ALLOW_CODE_EXEC=False 拦住，并在提示里给出 builtin 替代写法。
-    SchedulerUtil.require_schedulable(code_block)
-
-    jobstore = job_info.jobstore or "default"
-    executor = job_info.executor or "threadpool"
-
-    job_args = []
-    if job_info.args:
-        args_str = str(job_info.args).strip()
-        if args_str:
-            job_args = [arg.strip() for arg in args_str.split(",") if arg.strip()]
-
-    job_kwargs = {}
-    if job_info.kwargs:
-        kwargs_str = str(job_info.kwargs).strip()
-        if kwargs_str:
-            try:
-                job_kwargs = json.loads(kwargs_str)
-            except json.JSONDecodeError:
-                raise ValueError(f"关键字参数JSON格式无效: {kwargs_str}")
-
-    job_id = job_id_override or str(job_info.id)
-
-    try:
-        job = scheduler.add_job(
-            func=SchedulerUtil._task_wrapper,
-            trigger=trigger,
-            args=[str(job_info.id), code_block, *job_args],
-            kwargs=job_kwargs,
-            id=job_id,
-            name=f"{job_info.name}{name_suffix}",
-            coalesce=job_info.coalesce,
-            max_instances=job_info.max_instances or 1,
-            jobstore=jobstore,
-            executor=executor,
-        )
-        logger.info(f"任务 {job_id} 添加到 {jobstore} 存储器成功")
-        return job
-    except ConflictingIdError:
+def validate_node_definition(node) -> None:
+    """落库前校验函数、参数及完整时间范围。"""
+    task_definition(node)
+    if node.trigger:
         try:
-            scheduler.remove_job(job_id=job_id, jobstore=jobstore)
-        except JobLookupError:
-            pass
-        job = scheduler.add_job(
-            func=SchedulerUtil._task_wrapper,
-            trigger=trigger,
-            args=[str(job_info.id), code_block, *job_args],
-            kwargs=job_kwargs,
-            id=job_id,
-            name=f"{job_info.name}{name_suffix}",
-            coalesce=job_info.coalesce,
-            max_instances=job_info.max_instances or 1,
-            jobstore=jobstore,
-            executor=executor,
-        )
-        logger.info(f"任务 {job_id} 已存在，已移除旧任务并重新添加")
-        return job
+            _build_job_trigger(node.trigger, node.trigger_args, node.start_date, node.end_date)
+        except ValueError as exc:
+            raise CustomException(msg=str(exc)) from exc
+
+
+def task_definition(node) -> dict[str, Any]:
+    """生成执行所需的普通数据快照，供定时与手动执行复用。"""
+    SchedulerUtil.require_schedulable(node.func)
+    try:
+        kwargs = json.loads(node.kwargs) if node.kwargs and node.kwargs.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise CustomException(msg="关键字参数必须为 JSON 对象") from exc
+    if not isinstance(kwargs, dict):
+        raise CustomException(msg="关键字参数必须为 JSON 对象")
+    return {
+        "id": str(getattr(node, "id", "")), "name": node.name, "func": node.func,
+        "args": [arg.strip() for arg in (node.args or "").split(",") if arg.strip()],
+        "kwargs": kwargs, "trigger": node.trigger,
+        "coalesce": bool(node.coalesce), "max_instances": node.max_instances or 1,
+    }
+
+
+def prepare_node_job(node: NodeModel) -> tuple[dict[str, Any], Any] | None:
+    if node.status != 0 or not node.trigger or not (node.func or "").strip():
+        return None
+    trigger = _build_job_trigger(node.trigger, node.trigger_args, node.start_date, node.end_date)
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    if isinstance(trigger, DateTrigger) and trigger.run_date <= now:
+        return None
+    if trigger.get_next_fire_time(None, now) is None:
+        return None
+    return task_definition(node), trigger
 
 
 def register_node_job(node: NodeModel) -> Job | None:
-    """按节点持久化计划注册/刷新正式任务（job id = 节点 id）。
-
-    - 停用节点 / 未配置触发方式：从调度器移除（若有），返回 None；
-    - 其余：按 trigger/trigger_args 注册，编辑时旧任务会自动被覆盖。
-    """
-    if not node or node.status == 1 or not node.trigger or not (node.func or "").strip():
-        unregister_node_job(node_id=node.id)
+    """仅从数据库定义创建内存计划，过期计划不补跑。"""
+    plan = prepare_node_job(node)
+    if plan is None:
+        SchedulerUtil.remove_job(node.id)
         return None
-    trigger = _build_job_trigger(node.trigger, node.trigger_args, node.start_date, node.end_date)
-    return _add_job_with_trigger(node, trigger)
-
-
-def unregister_node_job(node_id: int | str) -> None:
-    """将节点从调度器移除（幂等）。"""
-    try:
-        SchedulerUtil.remove_job(job_id=str(node_id))
-    except JobLookupError:
-        pass
-
-
-def run_node_once(node: NodeModel) -> str:
-    """手动执行一次：创建带独立临时 job id 的一次性任务，不覆盖正式计划。
-
-    执行成功/失败会像正式任务一样写入 task_job 执行日志（job_id 归一到节点 id）。
-    """
-    if not node.func or not node.func.strip():
-        raise ValueError("任务代码块不能为空")
-    # 手动执行同样按可调度性判定：builtin 引用可直接执行；原始代码块在开关关闭时给出替代写法
-    SchedulerUtil.require_schedulable(node.func)
-    temp_job_id = f"{node.id}{_MANUAL_JOB_PREFIX}{datetime.now():%Y%m%d%H%M%S}"
-    trigger = DateTrigger(run_date=datetime.now() + timedelta(seconds=0.1), timezone="Asia/Shanghai")
-    _add_job_with_trigger(node, trigger, job_id_override=temp_job_id, name_suffix=" - 手动执行")
-    return temp_job_id
+    return SchedulerUtil.add_job(*plan)

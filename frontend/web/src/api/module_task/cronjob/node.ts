@@ -92,8 +92,6 @@ export interface ExecuteNodeResult {
 export interface NodeTable extends BaseType {
   name: string;
   code: string;
-  jobstore?: string;
-  executor?: string;
   trigger?: TriggerType;
   trigger_args?: string;
   func?: string;
@@ -113,8 +111,6 @@ export interface NodeTable extends BaseType {
 export interface NodeForm extends BaseFormType {
   name: string;
   code?: string;
-  jobstore?: string;
-  executor?: string;
   func?: string;
   args?: string;
   kwargs?: string;

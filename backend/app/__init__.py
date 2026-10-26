@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     if settings.module_enabled("task"):
         from app.core.ap_scheduler import SchedulerUtil
 
-        await SchedulerUtil.init_scheduler(redis=app.state.redis)
+        await SchedulerUtil.init_scheduler()
         scheduler_ready = SchedulerUtil.is_scheduler_ready()
         logger.info("✅ 定时任务调度器 初始化完成")
 

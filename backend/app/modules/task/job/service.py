@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.setting import settings
 from app.core.ap_scheduler import SchedulerUtil
 from app.core.base_schema import AuthSchema, PageResultSchema
 from app.core.exceptions import CustomException
@@ -10,7 +9,6 @@ from .crud import JobCRUD
 from .schema import (
     JobOutSchema,
     JobQueryParam,
-    SchedulerJobModifySchema,
     SchedulerJobSchema,
     SchedulerStatusSchema,
 )
@@ -72,15 +70,12 @@ class JobService:
         state = SchedulerUtil.get_scheduler_state()
         is_running = SchedulerUtil.is_running()
         jobs = SchedulerUtil.get_jobs()
-        # 可观测性（t15）：把"已注册但当前不可执行"的任务显式打出并计数，
-        # 运维不必逐个点开才知道开关调整/处理器改名后哪些任务静默失效
-        unschedulable = SchedulerUtil.log_unschedulable_jobs(context="调度器状态查询")
+        from app.config.setting import settings
         return SchedulerStatusSchema(
             status=JobService._SCHEDULER_STATE_MAP.get(state, "未知"),
             is_running=is_running,
             job_count=len(jobs),
             code_exec_enabled=settings.SCHEDULER_ALLOW_CODE_EXEC,
-            unschedulable_count=len(unschedulable),
         )
 
     @staticmethod
@@ -88,7 +83,7 @@ class JobService:
         jobs = SchedulerUtil.get_jobs()
         items: list[SchedulerJobSchema] = []
         for job in jobs:
-            schedulable, reason = SchedulerUtil.describe_schedulability(SchedulerUtil.job_code_block(job))
+            schedulable, reason = SchedulerUtil.describe_schedulability(job.args[0]["func"])
             items.append(
                 SchedulerJobSchema(
                     id=job.id,
@@ -96,23 +91,12 @@ class JobService:
                     trigger=str(job.trigger),
                     # pending/未排程任务没有 next_run_time 属性（APScheduler 只在真正排程后设置），必须 getattr 兜底
                     next_run_time=str(job.next_run_time) if getattr(job, "next_run_time", None) else None,
-                    status=SchedulerUtil.get_job_status(job_id=job.id),
+                    status=0 if SchedulerUtil.is_running() else 1,
                     schedulable=schedulable,
                     unschedulable_reason=None if schedulable else reason,
                 ),
             )
         return items
-
-    # ─── 调度器与任务运维（controller 唯一入口，禁止直调 SchedulerUtil）───
-
-    @staticmethod
-    def _ensure_job_exists(job_id: str) -> None:
-        if not SchedulerUtil.get_job(job_id=job_id):
-            raise CustomException(msg=f"任务 {job_id} 不存在或已从调度器移除")
-
-    @staticmethod
-    async def start_scheduler() -> None:
-        await SchedulerUtil.start()
 
     @staticmethod
     def pause_scheduler() -> None:
@@ -121,43 +105,3 @@ class JobService:
     @staticmethod
     def resume_scheduler() -> None:
         SchedulerUtil.resume()
-
-    @staticmethod
-    async def shutdown_scheduler() -> None:
-        await SchedulerUtil.shutdown()
-
-    @staticmethod
-    def clear_scheduler_jobs() -> None:
-        SchedulerUtil.clear_jobs()
-
-    @staticmethod
-    def get_scheduler_console() -> str:
-        return SchedulerUtil.print_jobs()
-
-    @staticmethod
-    def pause_job(job_id: str) -> None:
-        JobService._ensure_job_exists(job_id=job_id)
-        SchedulerUtil.pause_job(job_id=job_id)
-
-    @staticmethod
-    def resume_job(job_id: str) -> None:
-        JobService._ensure_job_exists(job_id=job_id)
-        SchedulerUtil.resume_job(job_id=job_id)
-
-    @staticmethod
-    def run_job_now(job_id: str) -> None:
-        JobService._ensure_job_exists(job_id=job_id)
-        SchedulerUtil.run_job_now(job_id=job_id)
-
-    @staticmethod
-    def modify_job(job_id: str, data: SchedulerJobModifySchema) -> None:
-        JobService._ensure_job_exists(job_id=job_id)
-        changes = data.to_changes()
-        if not changes:
-            raise CustomException(msg="没有需要修改的任务属性")
-        SchedulerUtil.modify_job(job_id=job_id, **changes)
-
-    @staticmethod
-    def remove_job(job_id: str) -> None:
-        JobService._ensure_job_exists(job_id=job_id)
-        SchedulerUtil.remove_job(job_id=job_id)

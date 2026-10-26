@@ -13,8 +13,6 @@ class NodeModel(ModelMixin, UserMixin):
     
     name: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="节点名称")
     code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, comment="节点编码")
-    jobstore: Mapped[str | None] = mapped_column(String(64), nullable=True, default="default", comment="存储器")
-    executor: Mapped[str | None] = mapped_column(String(64), nullable=True, default="threadpool", comment="执行器")
     trigger: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="触发器(cron/interval/date)")
     trigger_args: Mapped[str | None] = mapped_column(Text, nullable=True, comment="触发器参数")
     func: Mapped[str | None] = mapped_column(Text, nullable=True, comment="代码块")

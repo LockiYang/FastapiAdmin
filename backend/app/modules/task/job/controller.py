@@ -12,7 +12,6 @@ from app.core.router_class import OperationLogRoute
 from .schema import (
     JobOutSchema,
     JobQueryParam,
-    SchedulerJobModifySchema,
     SchedulerJobSchema,
     SchedulerStatusSchema,
 )
@@ -33,12 +32,6 @@ async def get_scheduler_jobs_controller() -> JSONResponse:
     return SuccessResponse(data=data, msg="获取调度器任务列表成功")
 
 
-@CronJobRouter.post("/scheduler/start", summary="启动调度器", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:scheduler"]))])
-async def start_scheduler_controller() -> JSONResponse:
-    await JobService.start_scheduler()
-    return SuccessResponse(msg="调度器已启动")
-
-
 @CronJobRouter.post("/scheduler/pause", summary="暂停调度器", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:scheduler"]))])
 async def pause_scheduler_controller() -> JSONResponse:
     JobService.pause_scheduler()
@@ -49,65 +42,6 @@ async def pause_scheduler_controller() -> JSONResponse:
 async def resume_scheduler_controller() -> JSONResponse:
     JobService.resume_scheduler()
     return SuccessResponse(msg="调度器已恢复")
-
-
-@CronJobRouter.post("/scheduler/shutdown", summary="关闭调度器", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:scheduler"]))])
-async def shutdown_scheduler_controller() -> JSONResponse:
-    await JobService.shutdown_scheduler()
-    return SuccessResponse(msg="调度器已关闭")
-
-
-@CronJobRouter.delete("/scheduler/jobs/clear", summary="清空所有任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
-async def clear_jobs_controller() -> JSONResponse:
-    JobService.clear_scheduler_jobs()
-    return SuccessResponse(msg="已清空所有任务")
-
-
-@CronJobRouter.get("/scheduler/console", summary="获取调度器控制台信息", response_model=ResponseSchema[str], dependencies=[Security(AuthPermission(["module_task:cronjob:job:query"]))])
-async def get_scheduler_console_controller() -> JSONResponse:
-    console_output = JobService.get_scheduler_console()
-    return SuccessResponse(data=console_output, msg="获取控制台信息成功")
-
-
-@CronJobRouter.post("/task/pause/{job_id}", summary="暂停任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
-async def pause_job_controller(
-    job_id: Annotated[str, Path(description="调度器任务ID")],
-) -> JSONResponse:
-    JobService.pause_job(job_id=job_id)
-    return SuccessResponse(msg="暂停任务成功")
-
-
-@CronJobRouter.post("/task/resume/{job_id}", summary="恢复任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
-async def resume_job_controller(
-    job_id: Annotated[str, Path(description="调度器任务ID")],
-) -> JSONResponse:
-    JobService.resume_job(job_id=job_id)
-    return SuccessResponse(msg="恢复任务成功")
-
-
-@CronJobRouter.post("/task/run/{job_id}", summary="立即执行任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
-async def run_job_controller(
-    job_id: Annotated[str, Path(description="调度器任务ID")],
-) -> JSONResponse:
-    JobService.run_job_now(job_id=job_id)
-    return SuccessResponse(msg="立即执行任务成功")
-
-
-@CronJobRouter.put("/task/modify/{job_id}", summary="修改任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:task"]))])
-async def modify_job_controller(
-    job_id: Annotated[str, Path(description="调度器任务ID")],
-    data: Annotated[SchedulerJobModifySchema, Body(description="要修改的任务属性，如 name、coalesce、max_instances 等")],
-) -> JSONResponse:
-    JobService.modify_job(job_id=job_id, data=data)
-    return SuccessResponse(msg="修改任务成功")
-
-
-@CronJobRouter.delete("/task/remove/{job_id}", summary="移除任务", response_model=ResponseSchema[None], dependencies=[Security(AuthPermission(["module_task:cronjob:job:delete"]))])
-async def remove_job_controller(
-    job_id: Annotated[str, Path(description="调度器任务ID")],
-) -> JSONResponse:
-    JobService.remove_job(job_id=job_id)
-    return SuccessResponse(msg="移除任务成功")
 
 
 @CronJobRouter.get("/log/list", summary="查询执行日志列表", response_model=ResponseSchema[PageResultSchema[JobOutSchema]])

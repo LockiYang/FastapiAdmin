@@ -29,8 +29,6 @@ class NodeCreateSchema(BaseModel):
     kwargs: str | None = Field(default=None, description="关键字参数")
     coalesce: bool | None = Field(default=False, description="是否合并运行:是否在多个运行时间到期时仅运行作业一次")
     max_instances: int | None = Field(default=1, ge=1, description="最大实例数:允许的最大并发执行实例数")
-    jobstore: str | None = Field(default="default", max_length=64, description="任务存储")
-    executor: str | None = Field(default="threadpool", max_length=64, description="任务执行器:将运行此作业的执行程序的名称")
     trigger: str | None = Field(default=None, description="触发方式: cron/interval/date，为空则不排程仅保存定义")
     trigger_args: str | None = Field(default=None, description="触发参数(表达式/间隔/执行时间)")
     start_date: str | None = Field(default=None, description="开始时间")

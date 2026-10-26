@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # ================================================= #
     SERVER_HOST: str = "0.0.0.0"  # 允许访问的IP地址
     SERVER_PORT: int = 8001  # 服务端口
-    WORKERS: int = 1  # uvicorn worker 进程数（prod 环境可调大；>1 时确保 Redis 共享 jobstore 不重复调度）
+    WORKERS: int = 1  # uvicorn worker 进程数；启用 task 模块时必须为 1（单机单进程调度）
     TRUSTED_PROXY_HOPS: int = 1  # 前置可信反向代理跳数（docker 部署默认单层 nginx；直连公网部署填 0）
 
     # ================================================= #
@@ -242,6 +242,13 @@ class Settings(BaseSettings):
     SWAGGER_JS_URL: str = "static/swagger/swagger-ui/swagger-ui-bundle.js"
     REDOC_JS_URL: str = "static/swagger/redoc/bundles/redoc.standalone.js"
     FAVICON_URL: str = "static/image/favicon.ico"
+
+    @model_validator(mode="after")
+    def _validate_scheduler_workers(self) -> "Settings":
+        """定时任务只支持单机单进程部署，拒绝多 worker 重复调度。"""
+        if self.module_enabled("task") and self.WORKERS != 1:
+            raise ValueError("启用 task 模块时仅支持单机单进程部署，请设置 WORKERS=1")
+        return self
 
     @model_validator(mode="after")
     def _merge_localhost_hosts(self) -> "Settings":

@@ -164,19 +164,19 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
         title: "调度器监控",
         path: "module_task/cronjob/job/index.vue",
         notes: [
-          "顶部状态区：调度器运行状态、任务数量；按钮：启动/暂停/恢复/关闭/清空任务/控制台/同步/刷新（各 `module_task:cronjob:job:*`）。",
-          "主区：任务卡片列表 — `getSchedulerJobs` 全量返回，名称与任务状态为前端筛选；单卡触发类型（Cron/间隔等）与暂停、恢复、调试、移除等行操作。",
+          "顶部状态区：本机调度器状态与任务数量；支持全局暂停/恢复、查看全部执行记录与刷新。",
+          "主区：正式计划卡片列表，展示触发规则、下次执行时间，点击查看该任务日志；任务修改与手动执行统一在任务管理。",
           "抽屉：当前任务的执行日志 — `useTable` + `getJobLogList` 分页，日志检索栏，批量删日志等（见页面）。",
         ],
       },
       {
         anchor: "page-cronnode",
-        title: "节点管理",
+        title: "任务管理",
         path: "module_task/cronjob/node/index.vue",
         notes: [
           "检索：FaSearchBar + 分页表。",
           "工具栏：新增、批量删除、刷新、列配置。",
-          "弹层：FaDialog + 分栏（表单 + 扩展配置区）；编辑节点连接与执行参数。",
+          "弹层：FaDialog + 分栏（表单 + 扩展配置区）；配置任务函数、执行计划与并发参数；运行计划统一使用内存与线程池。",
           "权限：`module_task:cronjob:node:create|delete` + 行级 update/detail/delete。",
         ],
       },

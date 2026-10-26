@@ -165,7 +165,7 @@ scheduler.start()
 
 `max_instances=1` 防止同一任务在上一次未结束时并发重叠；`coalesce=True` 将积压的多个计划执行时间合并。任务错过运行时刻的容忍时间由 `misfire_grace_time` 控制。若任务保存在持久化 JobStore，重启后会重新加载定义；任务函数应能被模块路径导入，避免用 lambda 或局部函数。
 
-本项目使用 [`AsyncIOScheduler`](../app/core/ap_scheduler.py)，默认任务存储在 Redis，还配置了 SQLAlchemy 和内存 JobStore；应用的 [`lifespan`](../app/__init__.py) 负责启动和关闭。多个 Uvicorn Worker 共用 JobStore 时，项目通过 Redis 锁选出一个实际运行调度器的进程，避免每个 Worker 都执行同一任务。定时任务应考虑重复执行时的幂等性；调度器和数据库提交不能天然组成一个事务。[APScheduler 3 用户指南](https://apscheduler.readthedocs.io/en/3.x/userguide.html)
+本项目使用 [`AsyncIOScheduler`](../app/core/ap_scheduler.py)，统一使用 MemoryJobStore 与线程池；任务定义和执行日志保存在业务数据库，应用的 [`lifespan`](../app/__init__.py) 负责加载计划、启动和关闭。仅支持一个后端实例、`WORKERS=1`。任务配置事务提交后更新内存计划；重启不补跑停机任务，过期 date 计划跳过，interval 有起点则沿用、无起点则重新计时。定时与手动执行共用执行及日志入口；函数仍应保持幂等。[APScheduler 3 用户指南](https://apscheduler.readthedocs.io/en/3.x/userguide.html)
 
 ## 5. 新增业务功能时怎样把四者串起来
 
