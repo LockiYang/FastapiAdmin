@@ -1,8 +1,6 @@
 import ftplib
-import os
 import socket
 import ssl
-import tempfile
 from datetime import datetime
 
 from app.core.exceptions import CustomException
@@ -42,7 +40,6 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
         self.file = self.sock.makefile("r", encoding=self.encoding)
         self.welcome = self.getresp()
         return self.welcome
-
 
 class FtpStorageAdapter(BaseStorageAdapter):
     """FTP / FTPS 存储适配器（ftplib 标准库，同步调用经 asyncio.to_thread 包装）。"""
@@ -100,7 +97,7 @@ class FtpStorageAdapter(BaseStorageAdapter):
         finally:
             self._close_client(client)
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         client = self._new_client()
         try:
             # 目标目录不存在时逐级创建（与 SFTP 上传行为对齐，否则 STOR 直接失败）
@@ -201,43 +198,6 @@ class FtpStorageAdapter(BaseStorageAdapter):
 
     # ── 目录操作（FTP mkd 不自动创建父目录，需逐级创建）────────────────
 
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        client = self._new_client()
-        try:
-            parts = [p for p in remote_dir.split("/") if p]
-            current = ""
-            for part in parts:
-                current = f"{current}/{part}" if current else part
-                try:
-                    client.mkd(current)
-                except ftplib.error_perm:
-                    pass  # 目录已存在时跳过（部分服务器返回 550）
-        except Exception:
-            logger.exception('FTP 创建目录失败')
-            raise
-        finally:
-            self._close_client(client)
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        client = self._new_client()
-        try:
-            client.rmd(remote_dir)
-        except Exception:
-            logger.exception('FTP 删除目录失败')
-            raise
-        finally:
-            self._close_client(client)
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        client = self._new_client()
-        try:
-            client.rename(src, dst)
-        except Exception:
-            logger.exception('FTP 重命名失败')
-            raise
-        finally:
-            self._close_client(client)
-
     @staticmethod
     def _is_dir(client: ftplib.FTP, path: str) -> bool:
         """通过 MLSD 类型判断路径是否为目录。"""
@@ -245,26 +205,3 @@ class FtpStorageAdapter(BaseStorageAdapter):
             return any(facts.get("type") == "dir" for _name, facts in client.mlsd(path))
         except Exception:
             return False
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件经本地临时文件中转（FTP 无服务端复制）。"""
-        client = self._new_client()
-        try:
-            if self._is_dir(client, src):
-                self._close_client(client)
-                self._sync_copy_dir(src, dst)
-                return
-            with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                tmp_path = tmp.name
-            try:
-                with open(tmp_path, "wb") as f:
-                    client.retrbinary(f"RETR {src}", f.write)
-                with open(tmp_path, "rb") as f:
-                    client.storbinary(f"STOR {dst}", f)
-            finally:
-                os.remove(tmp_path)
-        except Exception:
-            logger.exception('FTP 复制失败')
-            raise
-        finally:
-            self._close_client(client)

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from obs import ObsClient
+from obs import ObsClient, UploadFileHeader
 
 from app.core.exceptions import CustomException
 from app.core.logger import logger
@@ -16,105 +16,7 @@ from app.modules.storage.core.base import (
 
 
 class ObsStorageAdapter(BaseStorageAdapter):
-    """华为云 OBS 存储适配器（esdk-obs-python，同步调用经 asyncio.to_thread 包装）。
-    SDK API 概览
-    ------------
-
-    一、桶管理（Bucket）
-
-    | 接口名 | 方法 | 功能描述 |
-    | --- | --- | --- |
-    | 创建桶 | ObsClient.createBucket | 创建桶。 |
-    | 获取桶列表 | ObsClient.listBuckets | 查询桶列表，返回结果按照桶名字典序排列。 |
-    | 判断桶是否存在 | ObsClient.headBucket | 判断桶是否存在。 |
-    | 删除桶 | ObsClient.deleteBucket | 删除桶，待删除的桶必须为空。 |
-    | 列举桶内对象 | ObsClient.listObjects | 列举桶内对象，默认返回最大1000个对象。 |
-    | 列举桶内多版本对象 | ObsClient.listVersions | 列举桶内多版本对象，默认返回最大1000个多版本对象。 |
-    | 列举分段上传任务 | ObsClient.listMultipartUploads | 列举指定桶中所有的初始化后还未合并或还未取消的分段上传任务。 |
-    | 获取桶元数据 | ObsClient.getBucketMetadata | 对桶发送HEAD请求，获取桶的存储类型、CORS规则（如果已设置）等信息。 |
-    | 获取桶区域位置 | ObsClient.getBucketLocation | 获取桶所在的区域位置。 |
-    | 获取桶存量信息 | ObsClient.getBucketStorageInfo | 获取桶的存量信息，包含桶的空间大小以及对象个数。 |
-    | 设置桶配额 | ObsClient.setBucketQuota | 设置桶的配额值，单位为字节，支持的最大值为2^63-1，配额值设为0表示桶的配额没有上限。 |
-    | 获取桶配额 | ObsClient.getBucketQuota | 获取桶的配额值，0代表配额没有上限。 |
-    | 设置桶存储类型 | ObsClient.setBucketStoragePolicy | 设置桶的存储类型，桶中对象的存储类型默认将与桶的存储类型保持一致。 |
-    | 获取桶存储类型 | ObsClient.getBucketStoragePolicy | 获取桶的存储类型。 |
-    | 设置桶ACL | ObsClient.setBucketAcl | 设置桶ACL。 |
-    | 获取桶ACL | ObsClient.getBucketAcl | 获取桶ACL。 |
-    | 设置桶日志管理配置 | ObsClient.setBucketLogging | 设置桶的访问日志配置。 |
-    | 获取桶日志管理配置 | ObsClient.getBucketLogging | 获取桶的访问日志配置。 |
-    | 设置桶策略 | ObsClient.setBucketPolicy | 配置桶的策略，如果桶已经存在一个策略，当前请求中的策略将完全覆盖桶中现存的策略。 |
-    | 获取桶策略 | ObsClient.getBucketPolicy | 获取桶的策略配置。 |
-    | 删除桶策略 | ObsClient.deleteBucketPolicy | 删除桶的策略配置。 |
-    | 设置桶生命周期配置 | ObsClient.setBucketLifecycle | 配置桶的生命周期规则，实现定时转换桶中对象的存储类型，以及定时删除桶中对象的功能。 |
-    | 获取桶生命周期配置 | ObsClient.getBucketLifecycle | 获取桶的生命周期规则。 |
-    | 删除桶生命周期配置 | ObsClient.deleteBucketLifecycle | 删除桶所有的生命周期规则。 |
-    | 设置桶Website配置 | ObsClient.setBucketWebsite | 设置桶的Website配置。 |
-    | 获取桶Website配置 | ObsClient.getBucketWebsite | 获取桶的Website配置。 |
-    | 删除桶Website配置 | ObsClient.deleteBucketWebsite | 删除指定桶的Website配置。 |
-    | 设置桶多版本状态 | ObsClient.setBucketVersioning | 设置桶的多版本状态。 |
-    | 获取桶多版本状态 | ObsClient.getBucketVersioning | 获取桶的多版本状态。 |
-    | 设置桶CORS配置 | ObsClient.setBucketCors | 设置桶的跨域资源共享规则，以允许客户端浏览器进行跨域请求。 |
-    | 获取桶CORS配置 | ObsClient.getBucketCors | 获取指定桶的跨域资源共享规则。 |
-    | 删除桶CORS配置 | ObsClient.deleteBucketCors | 删除指定桶的跨域资源共享规则。 |
-    | 设置桶标签 | ObsClient.setBucketTagging | 设置桶的标签。 |
-    | 获取桶标签 | ObsClient.getBucketTagging | 获取指定桶的标签。 |
-    | 删除桶标签 | ObsClient.deleteBucketTagging | 删除指定桶的标签。 |
-
-    二、对象管理（Object）
-
-    | 接口名 | 方法 | 功能描述 |
-    | --- | --- | --- |
-    | 上传对象 | ObsClient.putContent | 上传对象到指定桶中。 |
-    | 上传文件 | ObsClient.putFile | 上传文件/文件夹到指定桶中。 |
-    | 追加上传 | ObsClient.appendObject | 对同一个对象追加数据内容。 |
-    | 下载对象 | ObsClient.getObject | 下载指定桶中的对象。 |
-    | 复制对象 | ObsClient.copyObject | 为指定桶中的对象创建一个副本。 |
-    | 删除对象 | ObsClient.deleteObject | 删除指定桶中的对象。 |
-    | 批量删除对象 | ObsClient.deleteObjects | 批量删除指定桶中的多个对象。 |
-    | 获取对象元数据 | ObsClient.getObjectMetadata | 对指定桶中的对象发送HEAD请求，获取对象的元数据信息。 |
-    | 修改对象元数据 | ObsClient.setObjectMetadata | 修改指定桶中对象的元数据信息。 |
-    | 设置对象ACL | ObsClient.setObjectAcl | 设置指定桶中对象ACL。 |
-    | 获取对象ACL | ObsClient.getObjectAcl | 获取指定桶中对象ACL。 |
-
-    三、分段上传（Multipart Upload）
-
-    | 接口名 | 方法 | 功能描述 |
-    | --- | --- | --- |
-    | 初始化分段上传任务 | ObsClient.initiateMultipartUpload | 在指定桶中初始化分段上传任务。 |
-    | 上传段 | ObsClient.uploadPart | 初始化分段上传任务后，通过分段上传任务的ID，上传段到指定桶中。 |
-    | 复制段 | ObsClient.copyPart | 初始化分段上传任务后，通过分段上传任务的ID，复制段到指定桶中。 |
-    | 列举已上传的段 | ObsClient.listParts | 通过分段上传任务的ID，列举指定桶中已上传的段。 |
-    | 合并段 | ObsClient.completeMultipartUpload | 通过分段上传任务的ID，合并指定桶中已上传的段。 |
-    | 取消分段上传任务 | ObsClient.abortMultipartUpload | 通过分段上传任务的ID，取消指定桶中的分段上传任务。 |
-
-    四、高级功能
-
-    | 接口名 | 方法 | 功能描述 |
-    | --- | --- | --- |
-    | 恢复归档存储对象 | ObsClient.restoreObject | 恢复指定桶中的归档存储对象。 |
-    | 生成带授权信息的URL | ObsClient.createSignedUrl | 通过访问密钥、请求方法类型、请求参数等信息生成一个在Query参数中携带鉴权信息的URL，以对OBS服务进行特定操作。 |
-    | 生成带授权信息的表单上传参数 | ObsClient.createPostSignature | 生成用于鉴权的请求参数，以进行基于浏览器的POST表单上传。 |
-    | 断点续传上传 | ObsClient.uploadFile | 对分段上传的封装和加强，解决上传大文件时由于网络不稳定或程序崩溃导致上传失败的问题。 |
-    | 断点续传下载 | ObsClient.downloadFile | 对范围下载的封装和加强，解决下载大对象到本地时由于网络不稳定或程序崩溃导致下载失败的问题。 |
-
-    五、工作流（WorkflowClient）
-
-    | 接口名 | 方法 | 功能描述 |
-    | --- | --- | --- |
-    | 创建工作流 | WorkflowClient.createWorkflow | 根据模板创建工作流。 |
-    | 查询工作流 | WorkflowClient.getWorkflow | 按名称查询工作流。 |
-    | 删除工作流 | WorkflowClient.deleteWorkflow | 删除存在的工作流。 |
-    | 更新工作流 | WorkflowClient.updateWorkflow | 更新工作流。 |
-    | 查询工作流列表 | WorkflowClient.listWorkflow | 查询工作流列表。 |
-    | API触发启动工作流 | WorkflowClient.asyncAPIStartWorkflow | API触发启动工作流。 |
-    | 查询工作流实例列表 | WorkflowClient.listWorkflowExecution | 查询工作流实例列表。 |
-    | 查询工作流实例 | WorkflowClient.getWorkflowExecution | 查询工作流实例详细。 |
-    | 恢复失败状态的工作流实例 | WorkflowClient.restoreFailedWorkflowExecution | 当且仅当工作流实例处于执行失败状态才能执行恢复操作。恢复后，工作流实例将从上次失败的状态处继续执行，已执行过的状态不会再执行。 |
-    | 配置桶触发器 | WorkflowClient.putTriggerPolicy | 在桶上绑定工作流触发器。 |
-    | 查询桶触发器 | WorkflowClient.getTriggerPolicy | 查询桶上绑定工作流触发器。 |
-    | 删除桶触发器 | WorkflowClient.deleteTriggerPolicy | 删除在桶上绑定工作流触发器。 |
-
-    """
+    """华为云 OBS 适配器：上传、只读浏览/下载及单文件补偿删除。"""
 
     protocol = StorageProtocol.OBS
 
@@ -165,25 +67,15 @@ class ObsStorageAdapter(BaseStorageAdapter):
             logger.warning(f"OBS 连接测试失败: {e}")
             return False
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
-        """上传：默认 uploadFile（断点续传 + 分片并发），流式传输（stream）走 putContent 单次上传。"""
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
+        """上传文件，按节点配置由 SDK 管理分片。"""
         try:
-            if self.config.transfer_mode == "stream":
-                with open(local_path, "rb") as f:
-                    resp = self.client.putContent(
-                        bucketName=self._require_bucket(),
-                        objectKey=remote_path,
-                        content=f,
-                    )
-                if not self._is_ok(resp):
-                    logger.error(f"OBS 上传失败: {self._error_desc(resp)}")
-                    raise RuntimeError(f"OBS 上传失败: {self._error_desc(resp)}")
-                return remote_path
-            part_size, concurrency, _ = self._multipart_settings()
+            part_size, concurrency = self._multipart_settings()
             resp = self.client.uploadFile(
                 bucketName=self._require_bucket(),
                 objectKey=remote_path,
                 uploadFile=local_path,
+                headers=UploadFileHeader(contentType=content_type),
                 partSize=part_size,
                 taskNum=concurrency,
                 enableCheckpoint=True,
@@ -368,15 +260,6 @@ class ObsStorageAdapter(BaseStorageAdapter):
             logger.exception('OBS 桶列表失败')
             raise
 
-    def _sync_get_url(self, remote_path: str, expire: int) -> str:
-        try:
-            resp = self.client.createSignedUrl("GET", bucketName=self._require_bucket(), objectKey=remote_path, expires=expire)
-            return getattr(resp, "signedUrl", "")
-        except Exception:
-            logger.exception('OBS 桶列表失败')
-            raise
-
-    # ── 目录操作（对象存储以 key/ 占位对象模拟目录）──────────────────
 
     def _list_all_keys(self, prefix: str) -> list[str]:
         """分页列举前缀下的全部对象 key。"""
@@ -414,65 +297,6 @@ class ObsStorageAdapter(BaseStorageAdapter):
         except Exception:
             return False
 
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        try:
-            resp = self.client.putContent(bucketName=self._require_bucket(), objectKey=remote_dir.rstrip("/") + "/", content=b"")
-            if not self._is_ok(resp):
-                logger.error(f"OBS 创建目录失败: {self._error_desc(resp)}")
-                raise RuntimeError(f"OBS 创建目录失败: {self._error_desc(resp)}")
-        except CustomException:
-            raise
-        except Exception:
-            logger.exception('OBS 创建目录失败')
-            raise
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        try:
-            resp = self.client.deleteObject(bucketName=self._require_bucket(), objectKey=remote_dir.rstrip("/") + "/")
-            if not self._is_ok(resp):
-                logger.error(f"OBS 删除目录失败: {self._error_desc(resp)}")
-                raise RuntimeError(f"OBS 删除目录失败: {self._error_desc(resp)}")
-        except CustomException:
-            raise
-        except Exception:
-            logger.exception('OBS 创建目录失败')
-            raise
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件用服务端 copyObject。"""
-        try:
-            if self._is_dir(src):
-                self._sync_copy_dir(src, dst)
-                return
-            resp = self.client.copyObject(
-                sourceBucketName=self._require_bucket(),
-                sourceObjectKey=src,
-                destBucketName=self._require_bucket(),
-                destObjectKey=dst,
-            )
-            if not self._is_ok(resp):
-                logger.error(f"OBS 复制失败: {self._error_desc(resp)}")
-                raise RuntimeError(f"OBS 复制失败: {self._error_desc(resp)}")
-        except CustomException:
-            raise
-        except Exception:
-            logger.exception('OBS 复制失败')
-            raise
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        """重命名/移动：优先 OBS 原生 renameFile（支持目录级），失败回退先复制后删除。"""
-        try:
-            resp = self.client.renameFile(bucketName=self._require_bucket(), objectKey=src, newObjectKey=dst)
-            if self._is_ok(resp):
-                return
-        except Exception:
-            pass
-        if self._is_dir(src):
-            self._sync_move_dir(src, dst)
-        else:
-            self._sync_copy(src, dst)
-            self._sync_delete(src)
-
     def _sync_list_recursive(self, prefix: str) -> list[StorageObject]:
         try:
             keys = self._list_all_keys(prefix)
@@ -480,28 +304,6 @@ class ObsStorageAdapter(BaseStorageAdapter):
             logger.exception('OBS 递归列表失败')
             raise
         return self._entries_from_keys(keys)
-
-    def _sync_delete_dir(self, remote_dir: str) -> None:
-        """递归删除：一次列举全部对象并分批批量删除（含占位目录对象）。"""
-        try:
-            keys = self._list_all_keys(remote_dir)
-            marker = remote_dir.rstrip("/") + "/"
-            if marker not in keys:
-                keys.append(marker)
-            for i in range(0, len(keys), 1000):
-                batch = keys[i : i + 1000]
-                resp = self.client.deleteObjects(
-                    bucketName=self._require_bucket(),
-                    deleteObjectsRequest={"quiet": True, "objects": [{"key": k} for k in batch]},
-                )
-                if not self._is_ok(resp):
-                    logger.error(f"OBS 递归删除失败: {self._error_desc(resp)}")
-                    raise RuntimeError(f"OBS 递归删除失败: {self._error_desc(resp)}")
-        except CustomException:
-            raise
-        except Exception:
-            logger.exception('OBS 递归删除失败')
-            raise
 
     def _sync_close(self) -> None:
         """关闭 OBS 客户端连接。"""

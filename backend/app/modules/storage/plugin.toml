@@ -1,8 +1,6 @@
-# 见 docs/PLUGIN_ARCHITECTURE.md
-
 name = "storage"
-title = "存储传输"
+title = "文件存储"
 version = "1.0.0"
-description = "存储源管理、对象存储适配（OSS/COS/OBS/S3/SFTP/FTP）、文件浏览、传输任务与传输流程编排。"
+description = "默认存储节点、公有附件上传、附件台账与文件浏览。"
 optional = true
-tags = ["storage", "transfer", "workflow"]
+tags = ["storage", "attachment"]

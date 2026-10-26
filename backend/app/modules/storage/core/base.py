@@ -2,8 +2,7 @@
 
 子类只需实现同步的 _sync_* 方法（协议相关逻辑），异步公开接口统一在
 基类中经 asyncio.to_thread 包装提供，避免阻塞事件循环。
-可选钩子：_sync_get_url（预签名 URL，不支持则省略，get_url 返回 None）、
-_sync_close（释放连接资源，无持久连接则省略，close 为空操作）。
+可选钩子：_sync_close（释放连接资源，无持久连接则省略，close 为空操作）。
 适配器实例按请求创建（无连接池复用），用完由调用方关闭。
 """
 import asyncio
@@ -29,7 +28,6 @@ class StorageProtocolDefSchema(BaseModel):
     name: str = Field(..., description="协议名称")
     default_port: int = Field(..., description="默认端口")
 
-
 class AdvancedFieldDefSchema(BaseModel):
     """高级配置字段定义元数据（/advanced-fields 接口返回，前端按类型动态渲染）"""
 
@@ -38,7 +36,6 @@ class AdvancedFieldDefSchema(BaseModel):
     default: Any | None = Field(default=None, description="默认值")
     type: Literal["boolean", "number", "text", "select"] = Field("text", description="组件类型")
     options: list[str] | None = Field(default=None, description="下拉选项")
-
 
 class StorageProtocol(str, Enum):
     """存储协议枚举"""
@@ -52,7 +49,6 @@ class StorageProtocol(str, Enum):
     COS = "cos"
     LOCAL = "local"
 
-
 # 各协议默认端口
 DEFAULT_PORTS: dict[StorageProtocol, int] = {
     StorageProtocol.FTP: 21,
@@ -65,7 +61,6 @@ DEFAULT_PORTS: dict[StorageProtocol, int] = {
     StorageProtocol.LOCAL: 0,
 }
 
-
 def encrypt_password(plain: str | None) -> str:
     """明文密码 → 密文。空值原样返回空串。
 
@@ -73,7 +68,6 @@ def encrypt_password(plain: str | None) -> str:
     SECRET_KEY 派生，避免 JWT 签名密钥与落库敏感数据的加密密钥同源。
     """
     return CryptoUtil.encrypt(plain)
-
 
 def decrypt_password(cipher: str | None) -> str:
     """密文 → 明文密码。空值原样返回空串。
@@ -83,20 +77,10 @@ def decrypt_password(cipher: str | None) -> str:
     """
     return CryptoUtil.decrypt(cipher)
 
-
-# 文件系统类协议与对象存储类协议的划分：仅用于文档说明与配置元数据，
-# 浏览/操作统一以"存储真根"为基准，path_prefix 不参与任何 key 计算。
-_FILE_SYSTEM_PROTOCOLS: frozenset[StorageProtocol] = frozenset(
-    {StorageProtocol.FTP, StorageProtocol.FTPS, StorageProtocol.SFTP, StorageProtocol.LOCAL}
-)
+# 对象存储协议集合；上传前缀由上传服务组装，适配器只处理完整对象路径。
 _OBJECT_STORE_PROTOCOLS: frozenset[StorageProtocol] = frozenset(
     {StorageProtocol.S3, StorageProtocol.OSS, StorageProtocol.COS, StorageProtocol.OBS}
 )
-
-
-# 流式传输阈值：SDK 高层上传超过该大小才触发分片（100GB，等效单次上传）
-_STREAM_THRESHOLD = 100 * 1024 * 1024 * 1024
-
 
 class StorageAdapterConfig(BaseModel):
     """存储适配器配置（从 StorageNodeModel 剥离加密字段后注入，解耦 ORM 与协议层）"""
@@ -110,7 +94,6 @@ class StorageAdapterConfig(BaseModel):
     endpoint: str | None = Field(default=None, description="接入点（对象存储）")
     scheme: str = Field(default="https", description="对象存储访问协议(http/https)")
     region: str | None = Field(default=None, description="区域（对象存储）")
-    path_prefix: str | None = Field(default=None, description="路径前缀（仅作节点元数据/传输默认路径，不参与浏览与 key 计算）")
     is_secure: bool = Field(default=False, description="是否启用 TLS（FTPS 显示加密 / COS 访问协议）")
     implicit_tls: bool = Field(default=False, description="FTPS 是否隐式 TLS（默认显式）")
     encrypt_type: int = Field(default=1, description="FTPS加密类型(0=明文 1=显式TLS可用时 2=要求显式TLS 3=隐式TLS)")
@@ -120,11 +103,8 @@ class StorageAdapterConfig(BaseModel):
     multipart_part_size: int = Field(default=50, ge=5, le=5000, description="分片大小(MB)")
     multipart_concurrency: int = Field(default=6, ge=1, le=64, description="分片上传并发路数")
     multipart_memory_budget: int = Field(default=512, ge=8, le=10240, description="分片上传内存预算(MB)")
-    # 传输方式（连线/任务级覆盖）：stream 不触发分片（等效单次上传），multipart 使用分片参数；空=按分片参数走 SDK 高层上传
-    transfer_mode: Literal["stream", "multipart"] | None = Field(default=None, description="传输方式")
     # SDK 高级配置（原始 JSON，由各适配器按协议解析合并默认值）
     advanced_config: dict = Field(default_factory=dict, description="SDK高级配置")
-
 
 def normalize_endpoint(endpoint: str | None, scheme: str = "https") -> str | None:
     """规范化对象存储接入点：SDK 要求完整 URL（带协议），缺失时按 scheme 自动补充。
@@ -135,7 +115,6 @@ def normalize_endpoint(endpoint: str | None, scheme: str = "https") -> str | Non
         return endpoint
     return endpoint if "://" in endpoint else f"{scheme or 'https'}://{endpoint}"
 
-
 class StorageObject(BaseModel):
     """远端文件对象信息"""
 
@@ -145,7 +124,6 @@ class StorageObject(BaseModel):
     size: int | None = Field(default=None, description="大小（字节）")
     modified_time: datetime | None = Field(default=None, description="修改时间")
 
-
 class StoragePage(BaseModel):
     """游标分页结果（对象存储 SDK 原生游标分页，无总条数，只能顺序翻页）"""
 
@@ -153,13 +131,11 @@ class StoragePage(BaseModel):
     has_next: bool = Field(default=False, description="是否还有下一页")
     next_cursor: str | None = Field(default=None, description="下一页游标（无下一页为 None）")
 
-
 class BaseStorageAdapter(ABC):
     """存储协议适配器抽象基类
 
     子类实现同步 _sync_* 方法即可，基类统一经 asyncio.to_thread 包装为异步接口。
-    可选钩子：_sync_get_url（生成预签名 URL，不支持则省略，get_url 返回 None）、
-    _sync_close（释放连接资源，无持久连接则省略，close 为空操作）。
+    可选钩子：_sync_close（释放连接资源，无持久连接则省略，close 为空操作）。
     适配器实例按请求创建（无连接池复用），用完由调用方关闭。
     """
 
@@ -185,22 +161,19 @@ class BaseStorageAdapter(ABC):
         """列出账号下全部存储桶（对象存储专用）。FTP/SFTP/LOCAL 等协议无需实现。"""
         raise NotImplementedError(f"{type(self).__name__} 不支持桶列表")
 
-    def _multipart_settings(self) -> tuple[int, int, bool]:
-        """返回 (分片大小, 并发数, 是否分片)，分片大小单位字节；并发按内存预算护栏收敛。
+    def _multipart_settings(self) -> tuple[int, int]:
+        """返回 (分片大小, 并发数)，分片大小单位字节；并发按内存预算护栏收敛。
 
         源项目运行设置语义：分片大小默认 50MB、并发默认 6、内存预算默认 512MB。
         仅对象存储分片上传使用，FTP/SFTP/LOCAL 等协议忽略。
-        传输方式为 stream 时返回超大阈值并关闭分片（等效单次上传）。
         """
-        if self.config.transfer_mode == "stream":
-            return _STREAM_THRESHOLD, 1, False
         part_size = max(self.config.multipart_part_size, 5) * 1024 * 1024
         concurrency = max(self.config.multipart_concurrency, 1)
         budget = self.config.multipart_memory_budget * 1024 * 1024
         if budget > 0:
             max_by_budget = max(1, budget // part_size)
             concurrency = min(concurrency, max_by_budget)
-        return part_size, concurrency, True
+        return part_size, concurrency
 
     # ── 同步协议操作（子类实现，经 asyncio.to_thread 包装对外）─────────
 
@@ -209,7 +182,7 @@ class BaseStorageAdapter(ABC):
         """测试连接是否可用。"""
 
     @abstractmethod
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         """上传本地文件到远端，返回远端完整 key。"""
 
     @abstractmethod
@@ -218,7 +191,7 @@ class BaseStorageAdapter(ABC):
 
     @abstractmethod
     def _sync_delete(self, remote_path: str) -> None:
-        """删除远端文件（目录递归删除由 delete_dir 处理）。"""
+        """删除单个远端文件（上传失败补偿）。"""
 
     @abstractmethod
     def _sync_exists(self, remote_path: str) -> bool:
@@ -227,24 +200,6 @@ class BaseStorageAdapter(ABC):
     @abstractmethod
     def _sync_list(self, prefix: str) -> list[StorageObject]:
         """列出远端目录下的文件与目录（不含前缀）。"""
-
-    # ── 目录操作（子类实现，经 asyncio.to_thread 包装对外）─────────────
-
-    @abstractmethod
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        """创建目录（remote_dir 为相对存储真根的目录路径）。"""
-
-    @abstractmethod
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        """删除空目录（对象存储删除占位标记）。"""
-
-    @abstractmethod
-    def _sync_rename(self, src: str, dst: str) -> None:
-        """重命名/移动（src/dst 为相对存储真根的路径，支持文件与目录）。"""
-
-    @abstractmethod
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制文件或目录（src/dst 为相对存储真根的路径）。"""
 
     # ── 默认实现（子类可按协议优化覆盖）───────────────────────────────
 
@@ -259,73 +214,6 @@ class BaseStorageAdapter(ABC):
                     stack.append(f"{current}/{entry.name}" if current else entry.name)
                 result.append(entry)
         return result
-
-    def _sync_delete_dir(self, remote_dir: str) -> None:
-        """递归删除目录（含目录本身）。默认：先删文件，再自底向上删空目录。"""
-        for entry in reversed(self._sync_list_recursive(remote_dir)):
-            if entry.is_dir:
-                try:
-                    self._sync_rmdir(entry.key)
-                except Exception as e:
-                    logger.warning("删除远端目录失败（将残留空目录）: {}: {}", entry.key, e)
-            else:
-                self._sync_delete(entry.key)
-        if remote_dir:
-            try:
-                self._sync_rmdir(remote_dir)
-            except Exception as e:
-                logger.warning("删除远端目录失败（将残留空目录）: {}: {}", remote_dir, e)
-
-    def _sync_copy_dir(self, src: str, dst: str) -> None:
-        """递归复制目录（src/dst 为相对存储真根的路径）：遍历后先建目录再逐文件复制。"""
-        src = src.rstrip("/")
-        for entry in self._sync_list_recursive(src):
-            full = entry.key
-            rel = full[len(src) + 1 :] if full.startswith(src + "/") else entry.key
-            target = f"{dst}/{rel}".strip("/")
-            if entry.is_dir:
-                self._sync_mkdir(target)
-            else:
-                self._sync_copy(full, target)
-
-    def _sync_move_dir(self, src: str, dst: str) -> None:
-        """递归移动目录（对象存储无原生目录重命名）：先复制后删除源。"""
-        self._sync_copy_dir(src, dst)
-        self._sync_delete_dir(src)
-
-    def _sync_upload_dir(self, local_dir: str, remote_dir: str, concurrency: int) -> int:
-        """批量上传目录：os.walk 收集文件后按 concurrency 并发上传，返回上传文件数。"""
-        if not os.path.isdir(local_dir):
-            raise CustomException(msg=f"本地目录不存在: {local_dir}")
-        base = os.path.normpath(local_dir)
-        tasks: list[tuple[str, str]] = []
-        for root, _dirs, names in os.walk(base):
-            for name in names:
-                local_path = os.path.join(root, name)
-                rel = os.path.relpath(local_path, base).replace(os.sep, "/")
-                remote_path = f"{remote_dir}/{rel}".strip("/") if remote_dir else rel
-                tasks.append((local_path, remote_path))
-        if not tasks:
-            return 0
-        errors: list[Exception] = []
-
-        def _run(task: tuple[str, str]) -> None:
-            try:
-                self._sync_upload(task[0], task[1])
-            except Exception as e:
-                errors.append(e)
-
-        workers = max(1, concurrency) if self.concurrency_safe else 1
-        if workers == 1:
-            for task in tasks:
-                _run(task)
-        else:
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                list(pool.map(_run, tasks))
-        if errors:
-            logger.error(f"批量上传失败 {len(errors)}/{len(tasks)} 个文件，首个错误: {errors[0]!s}")
-            raise RuntimeError(f"批量上传失败 {len(errors)}/{len(tasks)} 个文件，首个错误: {errors[0]!s}")
-        return len(tasks)
 
     def _sync_download_dir(self, remote_dir: str, local_dir: str, concurrency: int) -> int:
         """批量下载目录：递归列出后按 concurrency 并发下载，返回下载文件数。"""
@@ -383,8 +271,8 @@ class BaseStorageAdapter(ABC):
     async def test_connection(self) -> bool:
         return await asyncio.to_thread(self._sync_test_connection)
 
-    async def upload(self, local_path: str, remote_path: str) -> str:
-        return await asyncio.to_thread(self._sync_upload, local_path, remote_path)
+    async def upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
+        return await asyncio.to_thread(self._sync_upload, local_path, remote_path, content_type)
 
     async def download(self, remote_path: str, local_path: str) -> str:
         return await asyncio.to_thread(self._sync_download, remote_path, local_path)
@@ -434,40 +322,9 @@ class BaseStorageAdapter(ABC):
         """递归列出目录树（含隐含目录条目）。"""
         return await asyncio.to_thread(self._sync_list_recursive, prefix)
 
-    async def mkdir(self, remote_dir: str) -> None:
-        """创建目录。"""
-        await asyncio.to_thread(self._sync_mkdir, remote_dir)
-
-    async def rmdir(self, remote_dir: str) -> None:
-        """删除空目录。"""
-        await asyncio.to_thread(self._sync_rmdir, remote_dir)
-
-    async def delete_dir(self, remote_dir: str) -> None:
-        """递归删除目录（含目录本身）。"""
-        await asyncio.to_thread(self._sync_delete_dir, remote_dir)
-
-    async def rename(self, src: str, dst: str) -> None:
-        """重命名/移动（文件或目录）。"""
-        await asyncio.to_thread(self._sync_rename, src, dst)
-
-    async def copy(self, src: str, dst: str) -> None:
-        """复制（文件或目录）。"""
-        await asyncio.to_thread(self._sync_copy, src, dst)
-
-    async def upload_dir(self, local_dir: str, remote_dir: str = "", concurrency: int = 1) -> int:
-        """批量上传本地目录到远端，返回上传文件数。"""
-        return await asyncio.to_thread(self._sync_upload_dir, local_dir, remote_dir, concurrency)
-
     async def download_dir(self, remote_dir: str, local_dir: str, concurrency: int = 1) -> int:
         """批量下载远端目录到本地，返回下载文件数。"""
         return await asyncio.to_thread(self._sync_download_dir, remote_dir, local_dir, concurrency)
-
-    async def get_url(self, remote_path: str, expire: int = 3600) -> str | None:
-        """获取访问 URL（对象存储返回预签名 URL；FTP/SFTP/LOCAL 不支持返回 None）。"""
-        sync = getattr(self, "_sync_get_url", None)
-        if sync is None:
-            return None
-        return await asyncio.to_thread(sync, remote_path, expire)
 
     async def close(self) -> None:
         """释放连接资源（无持久连接的协议实现为空操作）。"""
@@ -475,7 +332,6 @@ class BaseStorageAdapter(ABC):
         if sync is None:
             return
         await asyncio.to_thread(sync)
-
 
 class S3AdvancedConfig(BaseModel):
     """S3 兼容对象存储（boto3/botocore Config）"""
@@ -496,7 +352,6 @@ class S3AdvancedConfig(BaseModel):
     request_checksum_calculation: str = Field(default="when_supported", description="请求校验和计算时机(when_supported/when_required)")
     response_checksum_validation: str = Field(default="when_supported", description="响应校验和验证时机(when_supported/when_required)")
 
-
 class OssAdvancedConfig(BaseModel):
     """阿里云 OSS（alibabacloud_oss_v2 Config）"""
 
@@ -514,7 +369,6 @@ class OssAdvancedConfig(BaseModel):
     disable_upload_crc64_check: bool = Field(default=False, description="关闭上传 CRC64 校验(提升性能)")
     disable_download_crc64_check: bool = Field(default=False, description="关闭下载 CRC64 校验(提升性能)")
     enabled_redirect: bool = Field(default=False, description="启用 HTTP 重定向")
-
 
 class CosAdvancedConfig(BaseModel):
     """腾讯云 COS（cos-python-sdk-v5：CosConfig + CosS3Client retry）"""
@@ -534,7 +388,6 @@ class CosAdvancedConfig(BaseModel):
     http_proxy: str | None = Field(default=None, max_length=255, description="HTTP 代理")
     https_proxy: str | None = Field(default=None, max_length=255, description="HTTPS 代理")
 
-
 class ObsAdvancedConfig(BaseModel):
     """华为云 OBS（esdk-obs-python ObsClient，3.26.x 无独立连接超时参数）"""
 
@@ -548,7 +401,6 @@ class ObsAdvancedConfig(BaseModel):
     region: str | None = Field(default=None, max_length=64, description="区域(部分场景必需)")
     security_token: str | None = Field(default=None, max_length=1024, description="临时密钥 Token(临时密钥认证时填写)")
 
-
 class SftpAdvancedConfig(BaseModel):
     """SFTP（paramiko SSHClient.connect）"""
 
@@ -561,12 +413,10 @@ class SftpAdvancedConfig(BaseModel):
     look_for_keys: bool = Field(default=True, description="查找本地密钥文件认证")
     keepalive_interval: int = Field(default=0, ge=0, le=3600, description="心跳间隔(秒，0 关闭)")
 
-
 class FtpAdvancedConfig(BaseModel):
     """FTP / FTPS（ftplib）"""
 
     timeout: int = Field(default=30, ge=1, le=300, description="连接超时(秒)")
-
 
 # ════════════════════════════════════════════════════════════════════════════
 # 各协议数据完整性校验能力对照（通常用于传输后的数据完整性保障，平时保持默认即可）
@@ -606,15 +456,6 @@ ADVANCED_CONFIG_MODELS: dict[StorageProtocol, type[BaseModel]] = {
     StorageProtocol.FTPS: FtpAdvancedConfig,
 }
 
-
-def parse_advanced_config(protocol: StorageProtocol, raw: dict[str, Any] | None) -> BaseModel | None:
-    """解析端点高级配置 JSON 为对应协议模型；local 或无配置返回 None。"""
-    model_cls = ADVANCED_CONFIG_MODELS.get(protocol)
-    if model_cls is None:
-        return None
-    return model_cls.model_validate(raw or {})
-
-
 # 前端渲染元数据：协议 → 字段 key → 可选值（按协议区分同名枚举，如 signature_version）
 _SELECT_OPTIONS: dict[str, dict[str, list[str]]] = {
     "s3": {
@@ -628,7 +469,6 @@ _SELECT_OPTIONS: dict[str, dict[str, list[str]]] = {
     "oss": {"signature_version": ["v4", "v1"]},
     "obs": {"signature": ["v2", "v4", "obs"]},
 }
-
 
 def _field_defs(model_cls: type[BaseModel], protocol_key: str) -> list[AdvancedFieldDefSchema]:
     defs: list[AdvancedFieldDefSchema] = []
@@ -663,7 +503,6 @@ def _field_defs(model_cls: type[BaseModel], protocol_key: str) -> list[AdvancedF
             )
         )
     return defs
-
 
 ADVANCED_FIELD_DEFS: dict[str, list[AdvancedFieldDefSchema]] = {
     protocol.value: _field_defs(model_cls, protocol.value) for protocol, model_cls in ADVANCED_CONFIG_MODELS.items()

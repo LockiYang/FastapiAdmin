@@ -21,17 +21,13 @@
 import "@wangeditor-next/editor/dist/css/style.css";
 import { onBeforeUnmount, onMounted, onUnmounted, shallowRef, computed } from "vue";
 import { Editor, Toolbar } from "@wangeditor-next/editor-for-vue";
-import { useUserStore } from "@stores";
-import { request, EmojiText } from "@utils";
+import FileAPI from "@/api/module_storage/file";
 import { IDomEditor, IToolbarConfig, IEditorConfig } from "@wangeditor-next/editor";
-import type { AxiosResponse } from "axios";
 import { ElMessage } from "element-plus";
 
 defineOptions({ name: "FaWangEditor" });
 
 type InsertFnType = (url: string, alt: string, href: string) => void;
-
-const { VITE_API_URL } = import.meta.env;
 
 // Props 定义
 interface Props {
@@ -51,9 +47,6 @@ interface Props {
   uploadConfig?: {
     maxFileSize?: number;
     maxNumberOfFiles?: number;
-    server?: string;
-    // 是否开启自定义上传
-    isCustomUpload?: boolean;
   };
 }
 
@@ -62,14 +55,12 @@ const props = withDefaults(defineProps<Props>(), {
   mode: "default",
   placeholder: "请输入内容...",
   excludeKeys: () => ["fontFamily"],
-  isCustomUpload: false,
 });
 
 const modelValue = defineModel<string>({ required: true });
 
 // 编辑器实例
 const editorRef = shallowRef<IDomEditor>();
-const userStore = useUserStore();
 
 // 常量配置
 const DEFAULT_UPLOAD_CONFIG = {
@@ -78,9 +69,6 @@ const DEFAULT_UPLOAD_CONFIG = {
   fieldName: "file",
   allowedFileTypes: ["image/*"],
 } as const;
-
-// 计算属性：上传服务器地址
-const uploadServer = computed(() => props.uploadConfig?.server || `${VITE_API_URL}/file/upload`);
 
 // 合并上传配置
 const mergedUploadConfig = computed(() => ({
@@ -119,55 +107,22 @@ const editorConfig: Partial<IEditorConfig> = {
       maxFileSize: mergedUploadConfig.value.maxFileSize,
       maxNumberOfFiles: mergedUploadConfig.value.maxNumberOfFiles,
       allowedFileTypes: [...mergedUploadConfig.value.allowedFileTypes],
-      server: uploadServer.value,
-      headers: {
-        Authorization: userStore.accessToken,
-      },
-      onSuccess() {
-        ElMessage.success(`图片上传成功 ${EmojiText[200]}`);
-      },
-      onError(_file: unknown, err: any, res: any) {
-        console.error("图片上传失败:", err, res);
-        ElMessage.error(`图片上传失败 ${EmojiText[500]}`);
+      customUpload: async (file: File, insertFn: InsertFnType) => {
+        if (file.size > mergedUploadConfig.value.maxFileSize) {
+          ElMessage.error("图片大小超过限制");
+          return;
+        }
+        try {
+          const result = (await FileAPI.upload(file, "attachment")).data.data;
+          insertFn(result.file_url, result.origin_name, result.file_url);
+        } catch (error) {
+          ElMessage.error("图片上传失败");
+          throw error;
+        }
       },
     },
   },
 };
-
-// 自定义上传
-const uploadConfig = props.uploadConfig;
-if (uploadConfig?.isCustomUpload && uploadConfig.server && editorConfig.MENU_CONF) {
-  const uploadServerUrl = uploadConfig.server;
-  editorConfig.MENU_CONF.uploadImage!.customUpload = async (file: File, insertFn: InsertFnType) => {
-    try {
-      const formData = new FormData();
-      formData.append(mergedUploadConfig.value.fieldName, file);
-
-      type UploadImagePayload = { url: string; alt?: string; href?: string };
-      const response = await request.post<
-        ApiResponse<UploadImagePayload>,
-        AxiosResponse<ApiResponse<UploadImagePayload>>
-      >(uploadServerUrl, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: userStore.accessToken,
-        },
-      });
-
-      const { url, alt = "", href = "" } = response.data.data ?? ({} as Record<string, string>);
-
-      if (!url) {
-        throw new Error("上传失败，请检查服务端配置");
-      }
-
-      insertFn(url, alt, href);
-      ElMessage.success(`图片上传成功 ${EmojiText[200]}`);
-    } catch (error) {
-      console.error("图片上传失败:", error);
-      ElMessage.error(`图片上传失败 ${EmojiText[500]}`);
-    }
-  };
-}
 
 // 编辑器创建回调
 const onCreateEditor = (editor: IDomEditor) => {

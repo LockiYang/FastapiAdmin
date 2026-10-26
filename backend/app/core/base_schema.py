@@ -55,17 +55,15 @@ class UploadResponseSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    file_path: str | None = Field(default=None, description="新文件映射路径")
+    file_id: int | None = Field(default=None, description="附件ID，供业务表引用")
+    file_size: int = Field(default=0, description="文件字节数")
+    mime_type: str | None = None
+    width: int = 0
+    height: int = 0
+    file_path: str | None = Field(default=None, description="相对存储真根的对象路径")
     file_name: str | None = Field(default=None, description="新文件名称")
     origin_name: str | None = Field(default=None, description="原文件名称")
     file_url: str | None = Field(default=None, description="新文件访问地址")
-
-
-class DownloadFileSchema(BaseModel):
-    """下载文件模型"""
-
-    file_path: str = Field(..., description="新文件映射路径")
-    file_name: str = Field(..., description="新文件名称")
 
 
 class SessionInfoSchema(BaseModel):

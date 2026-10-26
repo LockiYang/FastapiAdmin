@@ -3,6 +3,9 @@ import { request } from "@utils";
 const API_PATH = "/task/storage/node";
 
 const NodeAPI = {
+  setDefault(id: number) {
+    return request<ApiResponse<SourceTable>>({ url: `${API_PATH}/default/${id}`, method: "put" });
+  },
   pageNode(query?: TablePageQuery) {
     return request<ApiResponse<PageResult<SourceTable>>>({
       url: `${API_PATH}/page`,
@@ -57,7 +60,7 @@ const NodeAPI = {
     });
   },
 
-  testNodeConfig(body: SourceForm & { source_id?: number }) {
+  testNodeConfig(body: SourceForm & { node_id?: number }) {
     return request<ApiResponse<boolean>>({
       url: `${API_PATH}/test`,
       method: "post",
@@ -102,6 +105,7 @@ export interface AdvancedFieldDef {
 }
 
 export interface SourceForm extends BaseFormType {
+  public_base_url?: string;
   name?: string;
   protocol?: string;
   host?: string;
@@ -126,12 +130,12 @@ export interface SourceForm extends BaseFormType {
   multipart_memory_budget?: number;
   /** SDK 高级配置(JSON，按协议解析；留空使用 SDK 默认值) */
   advanced_config?: Record<string, string | number | boolean> | null;
-  is_default?: boolean;
   status?: number;
   description?: string;
 }
 
 export interface SourceTable extends BaseType {
+  public_base_url?: string;
   name?: string;
   protocol?: string;
   host?: string;
@@ -158,6 +162,7 @@ export interface SourceTable extends BaseType {
 }
 
 export interface TablePageQuery extends PageQuery {
+  public_base_url?: string;
   name?: string;
   protocol?: string;
   status?: number;

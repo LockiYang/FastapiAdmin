@@ -5,8 +5,6 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import aiofiles
-from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_schema import AuthSchema
@@ -20,13 +18,10 @@ from app.modules.storage.core.base import (
 )
 from app.modules.storage.core.factory import StorageAdapterFactory
 from app.modules.storage.node.service import StorageNodeService
-from app.utils.upload_util import UploadUtil
-
-from .schema import StoragePathCreateSchema, StoragePathResultSchema, StorageUploadResultSchema
 
 
-class StorageFileService:
-    """存储文件操作服务（上传/下载/删除/列表/预签名URL）"""
+class StorageBrowseService:
+    """存储实际内容的只读浏览和下载服务"""
 
     def __init__(self, auth: AuthSchema, db: AsyncSession) -> None:
         self.auth = auth
@@ -47,7 +42,7 @@ class StorageFileService:
     async def _get_source(self, source_id: int | None) -> StorageAdapterConfig:
         """获取存储源并构造适配器配置（密码已解密，含 SDK 高级配置）。"""
         source = await StorageNodeService(self.auth, self.db).get_active_source(source_id)
-        return StorageNodeService._build_config(source)
+        return StorageNodeService.build_config(source)
 
     async def _get_adapter(self, source_id: int | None, bucket: str | None = None) -> BaseStorageAdapter:
         """构造适配器并切换当前操作桶（对象存储多桶浏览：桶随请求传入，适配器按请求创建）。"""
@@ -56,27 +51,6 @@ class StorageFileService:
         if bucket:
             adapter.set_bucket(bucket)
         return adapter
-
-    @staticmethod
-    def _entries(result: list[StorageObject] | StoragePage) -> list[StorageObject]:
-        """全量列举结果规整为条目列表（探测/目录守卫等需要遍历条目的场景）。"""
-        return result.items if isinstance(result, StoragePage) else result
-
-    @staticmethod
-    async def _save_to_temp(file: UploadFile, suffix: str = "") -> str:
-        """将上传文件内容落盘到系统临时目录，返回临时路径。"""
-        fd, path = tempfile.mkstemp(suffix=suffix)
-        os.close(fd)
-        try:
-            async with aiofiles.open(path, "wb") as f:
-                while chunk := await file.read(1024 * 1024):
-                    await f.write(chunk)
-        except Exception:
-            os.unlink(path)
-            raise
-        finally:
-            await file.seek(0)
-        return path
 
     @staticmethod
     def _zip_directory(src_root: Path, zip_path: str, arc_root: Path) -> None:
@@ -91,56 +65,6 @@ class StorageFileService:
                     zf.write(f, f.relative_to(arc_root).as_posix())
 
     # ── 业务方法 ────────────────────────────────────────────────────
-
-    async def upload(
-        self,
-        source_id: int | None,
-        file: UploadFile,
-        remote_path: str | None = None,
-        bucket: str | None = None,
-    ) -> StorageUploadResultSchema:
-        """上传文件到远端存储。remote_path 为空时自动生成安全文件名。"""
-        if not file or not file.filename:
-            raise CustomException(msg="请选择要上传的文件")
-
-        if not UploadUtil.check_path_traversal(file.filename):
-            raise CustomException(msg="文件名包含非法字符")
-        extension = UploadUtil.get_extension_from_filename(file.filename)
-        if not extension:
-            raise CustomException(msg="无法识别文件类型")
-        if UploadUtil.is_dangerous_extension(extension):
-            raise CustomException(msg=f"不允许上传此类型的文件: {extension}")
-        UploadUtil.check_file_size(file)
-
-        # 确定远端路径
-        if remote_path:
-            if remote_path.endswith("/"):
-                # 以 / 结尾视为目录：保留原文件名，拼接到目录下
-                dir_path = self._validate_remote_path(remote_path)
-                target = f"{dir_path}/{file.filename}"
-            else:
-                target = self._validate_remote_path(remote_path)
-                # 大小写不敏感比较扩展名，避免 photo.JPG 被追加成 photo.JPG.jpg
-                if not target.lower().endswith(extension.lower()):
-                    target = f"{target}{extension}"
-        else:
-            target = UploadUtil.generate_safe_filename(file.filename, extension)
-
-        temp_path = await self._save_to_temp(file, suffix=extension)
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            await adapter.upload(temp_path, target)
-            file_url = await adapter.get_url(target)
-        finally:
-            await adapter.close()
-            os.unlink(temp_path)
-
-        return StorageUploadResultSchema(
-            file_path=target,
-            file_name=Path(target).name,
-            origin_name=file.filename,
-            file_url=file_url,
-        )
 
     async def download(self, source_id: int | None, remote_path: str, bucket: str | None = None) -> tuple[str, str]:
         """下载远端文件到临时目录，返回 (本地临时路径, 文件名)。"""
@@ -181,38 +105,6 @@ class StorageFileService:
             await asyncio.to_thread(shutil.rmtree, tmp_root, ignore_errors=True)
         return zip_path, f"{dir_name}.zip"
 
-    async def delete(self, source_id: int | None, remote_path: str, bucket: str | None = None) -> None:
-        target = self._validate_remote_path(remote_path)
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            # 目录探测：对象存储对不存在的目录 key 执行 delete 会幂等成功（不抛异常），
-            # 无法触发 delete_dir 回退，导致子文件残留；先探测再决定删除策略。
-            is_dir = False
-            try:
-                objects = self._entries(await adapter.list_files(target))
-                t = target.rstrip("/")
-                is_dir = any(o.is_dir or o.key.startswith(f"{t}/") for o in objects)
-            except Exception:
-                is_dir = False
-            if is_dir:
-                await adapter.delete_dir(target)
-            else:
-                try:
-                    await adapter.delete(target)
-                except Exception:
-                    # 文件删除失败时回退为递归删除：兼容 FTP/SFTP 等协议无原生目录删除
-                    await adapter.delete_dir(target)
-        finally:
-            await adapter.close()
-
-    async def exists(self, source_id: int | None, remote_path: str, bucket: str | None = None) -> bool:
-        target = self._validate_remote_path(remote_path)
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            return await adapter.exists(target)
-        finally:
-            await adapter.close()
-
     async def list_files(
         self,
         source_id: int | None,
@@ -243,81 +135,5 @@ class StorageFileService:
         adapter = StorageAdapterFactory.create(config)
         try:
             return await adapter.list_buckets()
-        finally:
-            await adapter.close()
-
-    async def copy_or_move(
-        self,
-        source_id: int | None,
-        source_path: str,
-        target_id: int,
-        target_path: str,
-        move: bool = False,
-        bucket: str | None = None,
-    ) -> StoragePathResultSchema:
-        """复制/移动文件：跨端点时下载到临时再上传；同端点 move 即重命名。"""
-        src = self._validate_remote_path(source_path)
-        dst = self._validate_remote_path(target_path)
-        if move and source_id == target_id and src == dst:
-            raise CustomException(msg="源路径与目标路径相同")
-        source_config = await self._get_source(source_id)
-        target_config = await self._get_source(target_id)
-        src_adapter = StorageAdapterFactory.create(source_config)
-        dst_adapter = StorageAdapterFactory.create(target_config)
-        # 多桶浏览：操作在指定桶内进行；同端点复制/移动目标桶与源桶一致
-        if bucket:
-            src_adapter.set_bucket(bucket)
-            if target_id == source_id:
-                dst_adapter.set_bucket(bucket)
-        # 目录守卫：本接口为文件级实现（临时文件 download/upload），目录会走进
-        # download_dir 的目录逻辑而报错，且可能移入自身子树导致数据丢失，显式拦截。
-        try:
-            entries = self._entries(await src_adapter.list_files(src))
-        except Exception:
-            entries = []
-        if any((e.is_dir and e.key.rstrip("/") == src) or e.key.startswith(f"{src}/") for e in entries):
-            raise CustomException(msg="暂不支持目录复制/移动，请使用传输任务")
-        fd, temp_path = tempfile.mkstemp(suffix=Path(dst).suffix)
-        os.close(fd)
-        try:
-            await src_adapter.download(src, temp_path)
-            await dst_adapter.upload(temp_path, dst)
-            if move:
-                await src_adapter.delete(src)
-        finally:
-            await src_adapter.close()
-            await dst_adapter.close()
-            os.unlink(temp_path)
-        return StoragePathResultSchema(source_path=src, target_path=dst)
-
-    async def rename(self, source_id: int | None, src_path: str, dst_path: str, bucket: str | None = None) -> StoragePathResultSchema:
-        """重命名/移动（同一存储源内）。"""
-        src = self._validate_remote_path(src_path)
-        dst = self._validate_remote_path(dst_path)
-        if src == dst:
-            raise CustomException(msg="源路径与目标路径相同")
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            await adapter.rename(src, dst)
-        finally:
-            await adapter.close()
-        return StoragePathResultSchema(source_path=src, target_path=dst)
-
-    async def mkdir(self, source_id: int | None, remote_dir: str, bucket: str | None = None) -> StoragePathCreateSchema:
-        """新建目录。"""
-        path = self._validate_remote_path(remote_dir)
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            await adapter.mkdir(path)
-        finally:
-            await adapter.close()
-        return StoragePathCreateSchema(path=path)
-
-    async def share(self, source_id: int | None, remote_path: str, expire: int = 3600, bucket: str | None = None) -> str | None:
-        """生成分享链接（对象存储为预签名 URL，FTP/SFTP/LOCAL 返回 None）。"""
-        target = self._validate_remote_path(remote_path)
-        adapter = await self._get_adapter(source_id, bucket)
-        try:
-            return await adapter.get_url(target, expire=expire)
         finally:
             await adapter.close()

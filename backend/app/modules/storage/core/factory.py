@@ -20,7 +20,6 @@ _STORAGE_ADAPTERS: dict[str, type[BaseStorageAdapter]] = {
     StorageProtocol.LOCAL.value: LocalStorageAdapter,
 }
 
-
 class StorageAdapterFactory:
     """存储适配器工厂：根据协议创建对应适配器实例。"""
 

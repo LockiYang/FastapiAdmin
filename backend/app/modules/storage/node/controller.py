@@ -126,3 +126,12 @@ async def test_storage_source_config_controller(
 ) -> JSONResponse:
     result: bool = await StorageNodeService(auth, db).test_config(data=data)
     return SuccessResponse(data=result, msg="连接成功")
+
+
+@StorageNodeRouter.put("/default/{id}", summary="设置默认上传节点", response_model=ResponseSchema[StorageNodeOutSchema])
+async def set_default_storage_controller(
+    auth: Annotated[AuthSchema, Security(AuthPermission(["module_task:storage:node:update"]))],
+    db: Annotated[AsyncSession, Depends(db_getter)],
+    id: Annotated[int, Path(ge=1)],
+) -> JSONResponse:
+    return SuccessResponse(data=await StorageNodeService(auth, db).set_default(id), msg="默认存储节点已更新")

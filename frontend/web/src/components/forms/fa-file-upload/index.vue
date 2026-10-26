@@ -29,14 +29,14 @@
 import { computed, ref } from "vue";
 import { CircleCloseFilled, Document, UploadFilled } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
-import { request } from "@utils";
-import type { AxiosResponse } from "axios";
+import FileAPI from "@/api/module_storage/file";
 
 defineOptions({ name: "FaFileUpload" });
 
 interface Props {
   /** 允许的文件类型（accept 语法，默认不限） */
   accept?: string;
+  topic?: string;
   /** 文件大小上限（MB） */
   maxSize?: number;
   /** 提示文案 */
@@ -50,6 +50,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const modelValue = defineModel<string>({ default: "" });
+const fileId = defineModel<number | undefined>("fileId");
+const emit = defineEmits<{ success: [file: UploadFilePath] }>();
 
 const uploading = ref(false);
 const fileInputRef = ref<HTMLInputElement>();
@@ -67,6 +69,7 @@ const fileName = computed(() => {
 
 const handleRemove = () => {
   modelValue.value = "";
+  fileId.value = undefined;
 };
 
 const onFileChange = (event: Event) => {
@@ -86,20 +89,14 @@ const onFileChange = (event: Event) => {
 const doUpload = async (file: File) => {
   uploading.value = true;
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await request.post<
-      ApiResponse<UploadFilePath>,
-      AxiosResponse<ApiResponse<UploadFilePath>>
-    >("/common/file/upload", formData, {
-      params: { upload_type: "file" },
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await FileAPI.upload(file, props.topic || "file");
     const fileUrl = response.data.data?.file_url;
     if (!fileUrl) {
       throw new Error("上传失败，未返回文件地址");
     }
     modelValue.value = fileUrl;
+    fileId.value = response.data.data.file_id;
+    emit("success", response.data.data);
     ElMessage.success("上传成功");
   } catch (error) {
     console.error("文件上传失败:", error);

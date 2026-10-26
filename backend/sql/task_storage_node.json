@@ -5,8 +5,8 @@
     "host": "static/upload",
     "port": 0,
     "path_prefix": null,
-    "is_default": true,
     "status": 0,
-    "description": "系统内置本地存储：backend/static/upload 目录（随应用启动自动创建）"
+    "description": "系统内置本地存储：backend/static/upload 目录（随应用启动自动创建）",
+    "public_base_url": "/static/upload"
   }
 ]

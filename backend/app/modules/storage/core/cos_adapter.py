@@ -73,7 +73,7 @@ class CosStorageAdapter(BaseStorageAdapter):
             logger.warning(f"COS 连接测试失败: {e}")
             return False
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         """
         :param Bucket(string): 存储桶名称.
         :param key(string): 分块上传路径名.
@@ -86,7 +86,7 @@ class CosStorageAdapter(BaseStorageAdapter):
         """
         try:
             # 分片大小/并发取端点配置；文件小于分片大小自动单次上传（流式传输时该值为超大值，等效单次）
-            part_size, concurrency, _ = self._multipart_settings()
+            part_size, concurrency = self._multipart_settings()
             self.client.upload_file(
                 Bucket=self._require_bucket(),
                 Key=remote_path,
@@ -94,6 +94,7 @@ class CosStorageAdapter(BaseStorageAdapter):
                 PartSize=part_size // (1024 * 1024),
                 MAXThread=concurrency,
                 EnableMD5=self._adv.enable_md5,
+                **({"ContentType": content_type} if content_type else {}),
             )
         except Exception:
             logger.exception('COS 上传失败')
@@ -267,29 +268,6 @@ class CosStorageAdapter(BaseStorageAdapter):
             logger.exception('COS 桶列表失败')
             raise
 
-    def _sync_get_url(self, remote_path: str, expire: int) -> str:
-        """生成预签名 URL
-        :param Bucket(string): 存储桶名称.
-        :param Key(string): COS路径.
-        :param Method(string): HTTP请求的方法, 'PUT'|'POST'|'GET'|'DELETE'|'HEAD'
-        :param Expired(int): 签名过期时间.
-        :param Params(dict): 签入签名的参数
-        :param Headers(dict): 签入签名的头部
-        :param SignHost(bool): 是否将host算入签名.
-        :return(string): 预先签名的URL.
-        """
-        try:
-            return self.client.get_presigned_url(
-                Method="GET",
-                Bucket=self._require_bucket(),
-                Key=remote_path,
-                Expired=expire,
-            )
-        except Exception:
-            logger.exception('COS 生成预签名 URL 失败')
-            raise
-
-    # ── 目录操作（对象存储以 key/ 占位对象模拟目录）──────────────────
 
     def _list_all_keys(self, prefix: str) -> list[str]:
         """分页列举前缀下的全部对象 key。"""
@@ -314,43 +292,6 @@ class CosStorageAdapter(BaseStorageAdapter):
         except Exception:
             return False
 
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        try:
-            self.client.put_object(Bucket=self._require_bucket(), Key=remote_dir.rstrip("/") + "/", Body=b"")
-        except Exception:
-            logger.exception('COS 创建目录失败')
-            raise
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        try:
-            self.client.delete_object(Bucket=self._require_bucket(), Key=remote_dir.rstrip("/") + "/")
-        except Exception:
-            logger.exception('COS 删除目录失败')
-            raise
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件用服务端 copy_object。"""
-        try:
-            if self._is_dir(src):
-                self._sync_copy_dir(src, dst)
-                return
-            self.client.copy_object(
-                Bucket=self._require_bucket(),
-                Key=dst,
-                CopySource={"Bucket": self._require_bucket(), "Key": src},
-            )
-        except Exception:
-            logger.exception('COS 复制失败')
-            raise
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        """重命名/移动：目录先复制后删除；文件 copy_object 后删源。"""
-        if self._is_dir(src):
-            self._sync_move_dir(src, dst)
-        else:
-            self._sync_copy(src, dst)
-            self._sync_delete(src)
-
     def _sync_list_recursive(self, prefix: str) -> list[StorageObject]:
         try:
             keys = self._list_all_keys(prefix)
@@ -358,19 +299,3 @@ class CosStorageAdapter(BaseStorageAdapter):
             logger.exception('COS 递归列表失败')
             raise
         return self._entries_from_keys(keys)
-
-    def _sync_delete_dir(self, remote_dir: str) -> None:
-        """递归删除：一次列举全部对象并分批批量删除（含占位目录对象）。"""
-        try:
-            keys = self._list_all_keys(remote_dir)
-            marker = remote_dir.rstrip("/") + "/"
-            if marker not in keys:
-                keys.append(marker)
-            for i in range(0, len(keys), 1000):
-                self.client.delete_objects(
-                    Bucket=self._require_bucket(),
-                    Delete={"Objects": [{"Key": k} for k in keys[i : i + 1000]], "Quiet": True},
-                )
-        except Exception:
-            logger.exception('COS 递归删除失败')
-            raise

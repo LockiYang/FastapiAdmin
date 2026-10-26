@@ -110,7 +110,7 @@ class SftpStorageAdapter(BaseStorageAdapter):
             logger.warning(f"SFTP 连接测试失败: {e}")
             return False
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         client = self._connect()
         try:
             dir_part, _ = remote_path.rsplit("/", 1) if "/" in remote_path else ("", remote_path)
@@ -188,38 +188,3 @@ class SftpStorageAdapter(BaseStorageAdapter):
             return bool(attr.st_mode and stat.S_ISDIR(attr.st_mode))
         except (FileNotFoundError, OSError):
             return False
-
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        try:
-            self._ensure_remote_dir(self._connect(), remote_dir)
-        except Exception:
-            logger.exception('SFTP 创建目录失败')
-            raise
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        try:
-            self._connect().rmdir(remote_dir)
-        except Exception:
-            logger.exception('SFTP 删除目录失败')
-            raise
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        try:
-            self._connect().posix_rename(src, dst)
-        except Exception:
-            logger.exception('SFTP 重命名失败')
-            raise
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件用通道流式复制（SFTP 无服务端复制）。"""
-        client = self._connect()
-        try:
-            if self._is_dir(src):
-                self._sync_copy_dir(src, dst)
-                return
-            with client.open(src, "rb") as rf, client.open(dst, "wb") as wf:
-                while chunk := rf.read(1024 * 1024):
-                    wf.write(chunk)
-        except Exception:
-            logger.exception('SFTP 复制失败')
-            raise

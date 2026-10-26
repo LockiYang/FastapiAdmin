@@ -78,7 +78,7 @@ FastapiAdmin/
 | `monitor` | 健康检查、在线用户、缓存和服务器监控。 | 当前路由无可选模块判断。 |
 | `common` | 通用文件等接口。 | 内置注册。 |
 | `task` | 调度任务及任务节点。 | `ENABLED_MODULES` 中的 `task`。 |
-| `storage` | 存储源、文件浏览、传输任务与流程。 | `storage`，与定时任务分别启用。 |
+| `storage` | 默认存储节点、附件台账与文件浏览。 | `storage`，与定时任务分别启用。 |
 | `generator` | 根据数据表生成后端、前端代码。 | `generator`。 |
 
 开关定义在 `backend/app/config/setting.py`，可由环境覆盖；新增可选模块时，要同时考虑路由、生命周期、种子和依赖。当前初始化仍加载全部 ORM 元数据，避免关闭模块后迁移误判为需要删除表；关闭模块不等同于移除表或卸载依赖。
@@ -234,8 +234,8 @@ API 使用现有 `request`，通常从 `@utils` 导入；类型使用 `ApiRespon
 | --- | --- |
 | 定时调度 | APScheduler，仅使用 MemoryJobStore 与一个线程池；任务表为唯一配置来源，启动先加载定义再调度，事务提交后同步内存计划。仅支持一个后端实例、`WORKERS=1`。监控只读计划与日志、支持全局暂停/恢复；任务管理统一修改配置。 |
 | 内置任务 | `builtin:<模块名>[.<函数名>]` 从 `modules/task/node/handlers` 解析处理器；原始代码块受 `SCHEDULER_ALLOW_CODE_EXEC` 控制，默认关闭。 |
-| 文件存储 | `modules/storage/core` 适配本地、FTP/FTPS、SFTP 及 S3、OSS、COS、OBS 等存储；浏览、传输、流程模块调用适配层。 |
-| 传输任务 | 记录任务与步骤，在进程内异步执行，通过 SSE 推送状态。不能据此假定已有独立分布式任务队列或进程退出后自动续跑。 |
+| 文件存储 | `modules/storage/core` 适配本地、FTP/FTPS、SFTP 及 S3、OSS、COS、OBS 等存储；统一上传服务和只读浏览模块调用适配层；公有 URL 由节点公有根地址与对象路径生成。 |
+| 公有附件 | `/common/file/upload` 使用唯一默认节点并登记 `storage_file`；`storage_file_reference` 供新业务在自身事务中维护引用。旧业务 URL 保留，附件逻辑删除保留对象。上传服务自管短事务与补偿，不向通用 `db_getter` 注入存储逻辑；远端 I/O 期间不持有配置或节点行锁。 |
 
 Redis 除登录会话、字典和参数缓存外，还用于验证码与 SSE 跨进程 Pub/Sub；不再保存调度计划。SSE 连接及事件分发见 `core/sse_manager.py`。Redis 初始化连接失败会中止启动，不能把它当作可有可无的缓存。
 
@@ -269,7 +269,7 @@ Redis 除登录会话、字典和参数缓存外，还用于验证码与 SSE 跨
 
 复制环境模板后按使用的数据库配置连接，MySQL/PostgreSQL 需准备可连接的数据库服务与数据库，Redis 也需可用；SQLite 省去独立数据库服务，不能免除其他运行依赖。端口、API 前缀和 WebSocket 端点以当前环境配置为准，后端默认端口为 8001。
 
-Web HTTP 默认通过 `VITE_APP_BASE_API` 前缀请求，开发代理目标为 `VITE_API_BASE_URL`；监控与存储传输 SSE 使用 `VITE_APP_WS_ENDPOINT` 指定的实时服务基址，并将 `ws/wss` 转为 `http/https`。API 代理配置不会自动替代该基址。
+Web HTTP 默认通过 `VITE_APP_BASE_API` 前缀请求，开发代理目标为 `VITE_API_BASE_URL`；监控与公告 SSE 使用 `VITE_APP_WS_ENDPOINT` 指定的实时服务基址，并将 `ws/wss` 转为 `http/https`。API 代理配置不会自动替代该基址。
 
 验证与 AI 行为遵循 AGENTS.md：未经用户要求不新增或修改测试脚本，不默认运行 pytest、Vitest 或全量检查。Web 的 `pnpm lint` 包含批量自动修复，不作为普通任务的无副作用检查。仓库 CI 独立配置后端 Ruff/pytest、Web 构建/类型检查/测试及移动端类型检查，不代表本地每次都需要全量执行。
 

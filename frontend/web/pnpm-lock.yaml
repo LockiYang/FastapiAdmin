@@ -36,18 +36,6 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.0
         version: 4.3.0(vite@7.3.3(@types/node@24.12.4)(jiti@2.7.0)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(tsx@4.22.0)(yaml@2.9.0))
-      '@vue-flow/background':
-        specifier: ^1.3.2
-        version: 1.3.2(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))
-      '@vue-flow/controls':
-        specifier: ^1.1.3
-        version: 1.1.3(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))
-      '@vue-flow/core':
-        specifier: ^1.48.1
-        version: 1.48.2(vue@3.5.34(typescript@6.0.3))
-      '@vue-flow/minimap':
-        specifier: ^1.5.4
-        version: 1.5.4(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))
       '@vueuse/core':
         specifier: ^14.3.0
         version: 14.3.0(vue@3.5.34(typescript@6.0.3))
@@ -72,9 +60,6 @@ importers:
       crypto-js:
         specifier: ^4.2.0
         version: 4.2.0
-      dagre:
-        specifier: ^0.8.5
-        version: 0.8.5
       dayjs:
         specifier: ^1.11.20
         version: 1.11.20
@@ -169,9 +154,6 @@ importers:
       '@types/codemirror':
         specifier: ^5.60.17
         version: 5.60.17
-      '@types/dagre':
-        specifier: ^0.7.54
-        version: 0.7.54
       '@types/file-saver':
         specifier: ^2.0.7
         version: 2.0.7
@@ -1512,9 +1494,6 @@ packages:
   '@types/codemirror@5.60.17':
     resolution: {integrity: sha512-AZq2FIsUHVMlp7VSe2hTfl5w4pcUkoFkM3zVsRKsn1ca8CXRDYvnin04+HP2REkwsxemuHqvDofdlhUWNpbwfw==}
 
-  '@types/dagre@0.7.54':
-    resolution: {integrity: sha512-QjcRY+adGbYvBFS7cwv5txhVIwX1XXIUswWl+kSQTbI6NjgZydrZkEKX/etzVd7i+bCsCb40Z/xlBY5eoFuvWQ==}
-
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
@@ -1701,29 +1680,6 @@ packages:
 
   '@volar/typescript@2.4.28':
     resolution: {integrity: sha512-Ja6yvWrbis2QtN4ClAKreeUZPVYMARDYZl9LMEv1iQ1QdepB6wn0jTRxA9MftYmYa4DQ4k/DaSZpFPUfxl8giw==}
-
-  '@vue-flow/background@1.3.2':
-    resolution: {integrity: sha512-eJPhDcLj1wEo45bBoqTXw1uhl0yK2RaQGnEINqvvBsAFKh/camHJd5NPmOdS1w+M9lggc9igUewxaEd3iCQX2w==}
-    peerDependencies:
-      '@vue-flow/core': ^1.23.0
-      vue: ^3.3.0
-
-  '@vue-flow/controls@1.1.3':
-    resolution: {integrity: sha512-XCf+G+jCvaWURdFlZmOjifZGw3XMhN5hHlfMGkWh9xot+9nH9gdTZtn+ldIJKtarg3B21iyHU8JjKDhYcB6JMw==}
-    peerDependencies:
-      '@vue-flow/core': ^1.23.0
-      vue: ^3.3.0
-
-  '@vue-flow/core@1.48.2':
-    resolution: {integrity: sha512-raxhgKWE+G/mcEvXJjGFUDYW9rAI3GOtiHR3ZkNpwBWuIaCC1EYiBmKGwJOoNzVFgwO7COgErnK7i08i287AFA==}
-    peerDependencies:
-      vue: ^3.3.0
-
-  '@vue-flow/minimap@1.5.4':
-    resolution: {integrity: sha512-l4C+XTAXnRxsRpUdN7cAVFBennC1sVRzq4bDSpVK+ag7tdMczAnhFYGgbLkUw3v3sY6gokyWwMl8CDonp8eB2g==}
-    peerDependencies:
-      '@vue-flow/core': ^1.23.0
-      vue: ^3.3.0
 
   '@vue-macros/common@3.1.2':
     resolution: {integrity: sha512-h9t4ArDdniO9ekYHAD95t9AZcAbb19lEGK+26iAjUODOIJKmObDNBSe4+6ELQAA3vtYiFPPBtHh7+cQCKi3Dng==}
@@ -2427,9 +2383,6 @@ packages:
     resolution: {integrity: sha512-MOqHvMWF9/9MX6nza0KgvFH4HpMU0EF5uUDXqX/BtxtU8NfB0QzRtJ8Oe/6SuS4kbhyzVJwjd97EA4PKrzJ8bw==}
     engines: {node: '>=0.12'}
 
-  dagre@0.8.5:
-    resolution: {integrity: sha512-/aTqmnRta7x7MCCpExk7HQL2O4owCT2h8NT//9I1OQ9vt29Pa0BzSAkR5lwFUcQ7491yVi/3CXU9jQ5o0Mn2Sw==}
-
   danmu.js@1.2.1:
     resolution: {integrity: sha512-evDEImUBo94c846fC92K//Dzll8jXnZ3zKmYlQHwMzmvw6IW2IyjWL3Ew2SqEAzuqauFnDkwJEgZauu3uW/p1Q==}
 
@@ -2980,9 +2933,6 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
-
-  graphlib@2.1.8:
-    resolution: {integrity: sha512-jcLLfkpoVGmH7/InMC/1hIvOPSUh38oJtGhvrOFGzioE1DZ+0YW16RgmOJhHiuWTvGiJQ9Z1Ik43JvkRPRvE+A==}
 
   has-flag@3.0.0:
     resolution: {integrity: sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==}
@@ -5865,8 +5815,6 @@ snapshots:
     dependencies:
       '@types/tern': 0.23.9
 
-  '@types/dagre@0.7.54': {}
-
   '@types/deep-eql@4.0.2': {}
 
   '@types/esrecurse@4.3.1': {}
@@ -6099,34 +6047,6 @@ snapshots:
       '@volar/language-core': 2.4.28
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
-
-  '@vue-flow/background@1.3.2(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))':
-    dependencies:
-      '@vue-flow/core': 1.48.2(vue@3.5.34(typescript@6.0.3))
-      vue: 3.5.34(typescript@6.0.3)
-
-  '@vue-flow/controls@1.1.3(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))':
-    dependencies:
-      '@vue-flow/core': 1.48.2(vue@3.5.34(typescript@6.0.3))
-      vue: 3.5.34(typescript@6.0.3)
-
-  '@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3))':
-    dependencies:
-      '@vueuse/core': 10.11.1(vue@3.5.34(typescript@6.0.3))
-      d3-drag: 3.0.0
-      d3-interpolate: 3.0.1
-      d3-selection: 3.0.0
-      d3-zoom: 3.0.0
-      vue: 3.5.34(typescript@6.0.3)
-    transitivePeerDependencies:
-      - '@vue/composition-api'
-
-  '@vue-flow/minimap@1.5.4(@vue-flow/core@1.48.2(vue@3.5.34(typescript@6.0.3)))(vue@3.5.34(typescript@6.0.3))':
-    dependencies:
-      '@vue-flow/core': 1.48.2(vue@3.5.34(typescript@6.0.3))
-      d3-selection: 3.0.0
-      d3-zoom: 3.0.0
-      vue: 3.5.34(typescript@6.0.3)
 
   '@vue-macros/common@3.1.2(vue@3.5.34(typescript@6.0.3))':
     dependencies:
@@ -6943,11 +6863,6 @@ snapshots:
       es5-ext: 0.10.64
       type: 2.7.3
 
-  dagre@0.8.5:
-    dependencies:
-      graphlib: 2.1.8
-      lodash: 4.18.1
-
   danmu.js@1.2.1:
     dependencies:
       event-emitter: 0.3.5
@@ -7589,10 +7504,6 @@ snapshots:
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
-
-  graphlib@2.1.8:
-    dependencies:
-      lodash: 4.18.1
 
   has-flag@3.0.0: {}
 

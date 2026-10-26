@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import alibabacloud_oss_v2 as oss
 
@@ -62,15 +62,14 @@ class OssStorageAdapter(BaseStorageAdapter):
             logger.warning(f"OSS 连接测试失败: {e}")
             return False
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         try:
             # 走 SDK 高层分片上传：普通小文件自动单次上传，大文件按端点分片参数并发分片；
-            # 流式传输（stream）时 part_size 为超大值，等效单次上传
-            part_size, concurrency, _ = self._multipart_settings()
+            part_size, concurrency = self._multipart_settings()
             # 注意：SDK 的 ``Client.uploader`` 是**方法**（返回 Uploader），必须调用后使用；
             # 写成 ``self.client.uploader.upload_file(...)`` 会在运行时抛 AttributeError。
             self.client.uploader().upload_file(
-                oss.PutObjectRequest(bucket=self.bucket_name, key=remote_path),
+                oss.PutObjectRequest(bucket=self.bucket_name, key=remote_path, content_type=content_type),
                 local_path,
                 part_size=part_size,
                 parallel_num=concurrency,
@@ -201,18 +200,6 @@ class OssStorageAdapter(BaseStorageAdapter):
             logger.exception('OSS 桶列表失败')
             raise
 
-    def _sync_get_url(self, remote_path: str, expire: int) -> str | None:
-        try:
-            result = self.client.presign(
-                oss.GetObjectRequest(bucket=self.bucket_name, key=remote_path),
-                expires=timedelta(seconds=expire),
-            )
-            return result.url
-        except Exception:
-            logger.exception('OSS 生成预签名 URL 失败')
-            raise
-
-    # ── 目录操作（对象存储以 key/ 占位对象模拟目录）──────────────────
 
     def _list_all_keys(self, prefix: str) -> list[str]:
         """分页列举前缀下的全部对象 key。"""
@@ -236,41 +223,6 @@ class OssStorageAdapter(BaseStorageAdapter):
         except Exception:
             return False
 
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        try:
-            self.client.put_object(oss.PutObjectRequest(bucket=self.bucket_name, key=remote_dir.rstrip("/") + "/", body=b""))
-        except Exception:
-            logger.exception('OSS 创建目录失败')
-            raise
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        try:
-            self.client.delete_object(oss.DeleteObjectRequest(bucket=self.bucket_name, key=remote_dir.rstrip("/") + "/"))
-        except Exception:
-            logger.exception('OSS 删除目录失败')
-            raise
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件用服务端 copy_object。"""
-        try:
-            if self._is_dir(src):
-                self._sync_copy_dir(src, dst)
-                return
-            self.client.copy_object(
-                oss.CopyObjectRequest(bucket=self.bucket_name, key=dst, source_bucket=self.bucket_name, source_key=src)
-            )
-        except Exception:
-            logger.exception('OSS 复制失败')
-            raise
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        """重命名/移动：目录先复制后删除；文件 copy_object 后删源。"""
-        if self._is_dir(src):
-            self._sync_move_dir(src, dst)
-        else:
-            self._sync_copy(src, dst)
-            self._sync_delete(src)
-
     def _sync_list_recursive(self, prefix: str) -> list[StorageObject]:
         try:
             keys = self._list_all_keys(prefix)
@@ -278,22 +230,3 @@ class OssStorageAdapter(BaseStorageAdapter):
             logger.exception('OSS 递归列表失败')
             raise
         return self._entries_from_keys(keys)
-
-    def _sync_delete_dir(self, remote_dir: str) -> None:
-        """递归删除：一次列举全部对象并分批批量删除（含占位目录对象）。"""
-        try:
-            keys = self._list_all_keys(remote_dir)
-            marker = remote_dir.rstrip("/") + "/"
-            if marker not in keys:
-                keys.append(marker)
-            for i in range(0, len(keys), 1000):
-                self.client.delete_multiple_objects(
-                    oss.DeleteMultipleObjectsRequest(
-                        bucket=self.bucket_name,
-                        objects=[oss.DeleteObject(key=k) for k in keys[i : i + 1000]],
-                        quiet=True,
-                    )
-                )
-        except Exception:
-            logger.exception('OSS 递归删除失败')
-            raise

@@ -334,6 +334,17 @@ function buildSourceRowActions(
 ): TableOperationAction[] {
   return [
     {
+      key: "default",
+      label: row.is_default ? "默认节点" : "设为默认",
+      artType: "edit",
+      perm: "module_task:storage:node:update",
+      run: async () => {
+        await NodeAPI.setDefault(row.id!);
+        ElMessage.success("默认存储节点已更新");
+        await refreshData();
+      },
+    },
+    {
       key: "open",
       label: "打开",
       artType: "view",
@@ -468,7 +479,7 @@ const testing = ref(false);
 async function handleTestConfig() {
   testing.value = true;
   try {
-    await NodeAPI.testNodeConfig({ ...formData.value, source_id: formData.value.id });
+    await NodeAPI.testNodeConfig({ ...formData.value, node_id: formData.value.id });
   } finally {
     testing.value = false;
   }
@@ -491,6 +502,7 @@ const sourceDetailItems: import("@/components/display/fa-descriptions/index.vue"
     { label: "端点地址", prop: "endpoint" },
     { label: "区域", prop: "region" },
     { label: "路径前缀", prop: "path_prefix" },
+    { label: "公有访问根地址", prop: "public_base_url" },
     { label: "分片大小(MB)", prop: "multipart_part_size" },
     { label: "分片并发", prop: "multipart_concurrency" },
     { label: "内存预算(MB)", prop: "multipart_memory_budget" },
@@ -509,7 +521,8 @@ const sourceDetailItems: import("@/components/display/fa-descriptions/index.vue"
 const initialFormData: SourceForm = {
   id: undefined,
   name: undefined,
-  protocol: "ftp",
+  protocol: "local",
+  public_base_url: undefined,
   host: undefined,
   port: undefined,
   username: undefined,
@@ -528,7 +541,6 @@ const initialFormData: SourceForm = {
   multipart_concurrency: 6,
   multipart_memory_budget: 512,
   advanced_config: {},
-  is_default: false,
   status: 0,
   description: undefined,
 };
@@ -583,7 +595,6 @@ function onProtocolChange(p: string) {
   delete protocolSpecific.id;
   delete protocolSpecific.name;
   delete protocolSpecific.description;
-  delete protocolSpecific.is_default;
   delete protocolSpecific.status;
   Object.assign(formData.value, { ...protocolSpecific, protocol: p });
   // 对象存储自动带出默认区域（覆盖旧协议残留区域）
@@ -691,7 +702,10 @@ const sourceDialogFormItems = computed<FormItem[]>(() => {
         props: {
           placeholder: "请选择或输入区域",
           // ElOption 只认 { label, value }：直接传字符串会展开成下标属性、value 缺省被布尔转为 false，导致选项显示 "false"
-          options: (regionDict[p]?.options ?? []).map((region) => ({ label: region, value: region })),
+          options: (regionDict[p]?.options ?? []).map((region) => ({
+            label: region,
+            value: region,
+          })),
           filterable: true,
           allowCreate: true,
         },
@@ -826,10 +840,13 @@ const sourceDialogFormItems = computed<FormItem[]>(() => {
   }
   items.push(
     {
-      label: "默认存储源",
-      key: "is_default",
-      type: "switch",
-      span: 12,
+      label: "公有访问根地址",
+      key: "public_base_url",
+      type: "input",
+      span: 24,
+      props: {
+        placeholder: "例如 https://files.example.com（对应存储真根，包含桶，不含路径前缀）",
+      },
     },
     {
       label: "状态",

@@ -1,4 +1,5 @@
 import codecs
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -8,6 +9,20 @@ from app.modules.storage.core.base import DEFAULT_PORTS, StorageProtocol
 
 class StorageNodeConfigSchema(BaseModel):
     """存储源连接配置模型（创建/测试共用）"""
+
+    public_base_url: str | None = Field(default=None, max_length=512, description="公有访问根地址，对应存储真根")
+
+    @field_validator("public_base_url")
+    @classmethod
+    def validate_public_url(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        if value.startswith("/") and not value.startswith("//") and not any(part in value for part in ("..", "?", "#", "\\")):
+            return value.rstrip("/")
+        parts = urlsplit(value.strip())
+        if parts.scheme not in {"http", "https"} or not parts.netloc or parts.query or parts.fragment or parts.username or parts.password:
+            raise ValueError("公有访问地址必须为不带凭据、查询参数或片段的 HTTP/HTTPS URL")
+        return value.strip().rstrip("/")
 
     protocol: StorageProtocol = Field(..., description="协议(ftp/ftps/sftp/s3/obs/oss/cos/local)")
     host: str | None = Field(default=None, max_length=255, description="主机地址/根目录（对象存储可不填，用 endpoint）")
@@ -112,7 +127,6 @@ class StorageNodeCreateSchema(StorageNodeConfigSchema):
     """存储源创建模型"""
 
     name: str = Field(..., min_length=1, max_length=64, description="存储源名称")
-    is_default: bool = Field(default=False, description="是否默认存储源")
     status: int = Field(default=0, ge=0, le=1, description="状态(0:启用 1:停用)")
     description: str | None = Field(default=None, max_length=255, description="备注")
 
@@ -141,6 +155,7 @@ class StorageNodeOutSchema(StorageNodeCreateSchema, BaseSchema, UserBySchema):
     model_config = ConfigDict(from_attributes=True)
 
     password: None = Field(default=None, exclude=True, repr=False, description="密码(不返回)")
+    is_default: bool = Field(default=False, description="是否默认存储源（只读）")
     has_password: bool = Field(default=False, description="是否已配置密码")
 
     @field_validator("password", mode="before")

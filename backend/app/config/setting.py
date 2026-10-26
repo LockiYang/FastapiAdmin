@@ -1,6 +1,5 @@
 import os
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote_plus
 
@@ -221,15 +220,22 @@ class Settings(BaseSettings):
     # ================================================= #
     # ***************** 动态文件配置 ***************** #
     # ================================================= #
-    UPLOAD_FILE_PATH: Path = Path("static/upload")  # 上传目录
-    UPLOAD_MACHINE: str = "A"  # 上传机器标识
     ALLOWED_EXTENSIONS: list[str] = [  # 允许的文件类型
         ".gif",
         ".jpg",
         ".jpeg",
         ".png",
         ".ico",
-        ".svg",
+        ".webp",
+        ".bmp",
+        ".pdf",
+        ".txt",
+        ".csv",
+        ".doc",
+        ".docx",
+        ".ppt",
+        ".pptx",
+        ".zip",
         ".xls",
         ".xlsx",
     ]

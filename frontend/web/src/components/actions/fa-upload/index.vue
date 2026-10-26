@@ -81,7 +81,7 @@ import { ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { UploadRawFile, UploadRequestOptions, UploadUserFile } from "element-plus";
 import { CircleCloseFilled, Plus } from "@element-plus/icons-vue";
-import ParamsAPI from "@/api/module_system/params";
+import FileAPI from "@/api/module_storage/file";
 import { dataURLToFile } from "@utils";
 
 interface Props {
@@ -89,6 +89,8 @@ interface Props {
    * 请求携带的额外参数
    */
   data?: Record<string, any>;
+  /** 附件分类；新业务可从 success 事件读取 file_id */
+  topic?: "file" | "avatar" | "param" | "resource" | "attachment";
   /**
    * 上传文件的参数名
    */
@@ -160,6 +162,7 @@ const modelValue = defineModel<string>({
 });
 
 // 内部使用的文件列表
+const fileId = defineModel<number | undefined>("fileId");
 const internalFileList = ref<UploadUserFile[]>([]);
 
 const cropVisible = ref(false);
@@ -201,7 +204,7 @@ async function uploadFileInternal(file: File | UploadRawFile) {
     formData.append(key, String(value));
   }
 
-  const response = await ParamsAPI.uploadFile(formData);
+  const response = await FileAPI.uploadForm(formData, props.topic || "file");
 
   if (response.data.code === 0 && response.data) {
     const fileInfo: UploadFilePath = response.data.data;
@@ -239,6 +242,7 @@ watch(
       modelValue.value = newVal[0]!.url;
     } else {
       modelValue.value = "";
+      fileId.value = undefined;
     }
   },
   { deep: true }
@@ -319,6 +323,7 @@ async function handleUpload(options: UploadRequestOptions) {
  * 删除图片
  */
 function handleDelete() {
+  fileId.value = undefined;
   // 清空模型值并通知父组件
   internalFileList.value = [];
 }
@@ -349,6 +354,7 @@ function handleImageClick(event: Event) {
  * @param fileInfo 上传成功后的文件信息
  */
 const onSuccess = (fileInfo: UploadFilePath) => {
+  fileId.value = fileInfo.file_id;
   // 更新绑定的值为文件URL
   const newFileList = [
     {

@@ -1,7 +1,7 @@
-from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.base_model import ModelMixin, UserMixin
+from app.core.base_model import MappedBase, ModelMixin, UserMixin
 
 
 class StorageNodeModel(ModelMixin, UserMixin):
@@ -30,6 +30,16 @@ class StorageNodeModel(ModelMixin, UserMixin):
     multipart_concurrency: Mapped[int] = mapped_column(Integer, default=6, nullable=False, comment="分片上传并发路数")
     multipart_memory_budget: Mapped[int] = mapped_column(Integer, default=512, nullable=False, comment="分片上传内存预算(MB)")
     advanced_config: Mapped[dict | None] = mapped_column(JSON, default=None, nullable=True, comment="SDK高级配置(JSON，按协议解析)")
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否默认存储源")
+    public_base_url: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="公有访问根地址（对应存储真根，包含桶，不含路径前缀）")
     status: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="状态(0:启用 1:停用)")
     description: Mapped[str | None] = mapped_column(Text, default=None, nullable=True, comment="备注")
+
+
+class StorageSettingModel(MappedBase):
+    """系统唯一默认存储指针；id 固定为 1。"""
+
+    __tablename__ = "storage_setting"
+    __table_args__ = (CheckConstraint("id = 1", name="singleton"), {"comment": "默认存储设置"})
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False, default=1)
+    default_node_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("task_storage_node.id", ondelete="RESTRICT"), nullable=True)

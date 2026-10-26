@@ -15,7 +15,7 @@
 
 ## 1. 产品概述
 
-FastapiAdmin 是一套前后端分离的应用管理系统，同时提供企业后台管理能力和前台用户基础服务。后台提供账号管理、菜单与按钮权限、部门数据范围、字典与系统参数、公告、工单、版本、审计日志，以及定时任务、多协议存储与文件传输和代码生成；前台支持用户注册、登录、维护个人资料及使用面向用户开放的业务功能。
+FastapiAdmin 是一套前后端分离的应用管理系统，同时提供企业后台管理能力和前台用户基础服务。后台提供账号管理、菜单与按钮权限、部门数据范围、字典与系统参数、公告、工单、版本、审计日志，以及定时任务、默认存储与公有附件管理和代码生成；前台支持用户注册、登录、维护个人资料及使用面向用户开放的业务功能。
 
 使用者：
 
@@ -486,143 +486,41 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 | DELETE | `/log/delete` | 删除执行记录 |
 
 
-## 9. 存储与传输
+## 9. 文件存储管理
 
-### 9.1 存储源
+### 9.1 存储节点与默认设置
 
-#### 业务描述
+`task_storage_node` 保存协议、根目录/桶、接入点、加密凭据、公有访问根地址和启停状态。可浏览本地、FTP/FTPS、SFTP、S3、OSS、COS、OBS；统一上传的默认节点仅支持本地和对象存储。
 
-用统一配置连接本地磁盘、FTP/FTPS/SFTP 和对象存储，供浏览、传输和流程复用。
+`storage_setting` 是单例配置，`default_node_id` 是唯一默认指针。默认解析不受上传人的后台部门数据范围影响，凭据只在服务端使用；节点管理仍检查管理员权限和数据范围。缺少有效默认节点时上传报错，不回退到其他节点。
 
-#### 业务规则
+公有访问根地址对应存储真根（包含桶，不包含 `path_prefix`）。对象存储配置完整 HTTP/HTTPS 公有根地址；本地可配置完整地址或应用内路径，内置目录为 `/static/upload`，生成链接时自动补齐 `/api/v1` 等应用挂载前缀，已包含前缀的配置不重复拼接。实际桶公有读取和 CDN/静态映射由部署配置保证，连接测试不代表已验证匿名读取。
 
-- 协议：`local`、`ftp`、`ftps`、`sftp`、`s3`、`obs`、`oss`、`cos`。名称唯一。
-- 创建和修改时按协议校验连接字段。对象存储需要桶；endpoint、region 等是否必填由该协议的校验决定。
-- 密码和密钥加密保存，响应不回明文。
-- 可用已保存的源或一份临时配置测试连接。
-- 调用方未指定源时，先用默认且启用的源，否则用其他启用源。
-- 同一时刻只应有一个默认源。状态 `0` 启用，`1` 停用。
+默认节点不能直接停用或删除，先切换默认节点。默认指针仅通过“设为默认”接口修改，节点表单的 `is_default` 只读。已有附件的节点不能修改存储定位配置（协议、根目录、端口、桶、endpoint、region、scheme、前缀、公有地址及高级路由配置）或删除，凭据和性能选项允许更新。切换默认只影响之后的上传，正在上传的请求使用其节点快照，旧文件通过自己的节点定位。
 
-#### 数据模型
+管理接口沿用 `/task/storage/node` 的分页、列表、详情、创建、更新、删除、协议、高级配置、连接测试；`PUT /task/storage/node/default/{id}` 设置默认。
 
-**task_storage_node**：供浏览、传输和流程节点复用的连接配置。
+### 9.2 文件浏览器
 
-| 关键字段 | 业务用途或关联 |
-| --- | --- |
-| `name` / `protocol` | 名称唯一；协议决定连接校验和存储适配器 |
-| `host` / `port`、`username` / `password` | 主机连接与认证，密码或密钥加密保存 |
-| `bucket` / `endpoint` / `region` / `path_prefix` | 对象存储定位与起始路径，按协议使用 |
-| `is_default` / `status` | 默认源选择与可用性 |
-| `multipart_part_size` / `multipart_concurrency` | 分片默认参数，可被传输步骤或流程连线覆盖 |
+保留多节点标签、桶选择、目录导航、游标加载、文件下载和目录 ZIP 下载。查询实际存储，不代表附件台账。文件浏览页不提供上传入口，上传统一在附件管理页面完成。
 
-传输任务、步骤和流程节点通过存储源 ID 引用本模型，由业务层校验可用性。
+保留 `/task/storage/browse/list`、`buckets`、`download`、`download_dir`，移除绕过附件记录的上传、删除、重命名、移动、复制和新建目录接口。流程、传输任务与 SSE 功能退出当前模块。
 
-#### API 接口
+### 9.3 公有附件与统一上传
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/task/storage/node/protocols`、`advanced-fields` | 协议列表与高级字段定义 |
-| GET | `page`、`list`、`detail/{id}` | 分页、简表、详情 |
-| POST / PUT / DELETE | `create`、`update/{id}`、`delete` | 维护 |
-| POST | `test`、`test/{id}` | 测试临时配置或已有源 |
+`POST /common/file/upload` 要求登录及 `module_common:file:upload` 权限，`upload_type` 支持 `file/avatar/param/resource/attachment`。分块读取、校验允许扩展名及实际大小，生成随机文件名；公有附件拒绝 HTML、SVG/XML 等活跃内容。图片记录常见位图宽高；大小上限和允许类型由现有配置控制。
 
-### 9.2 文件浏览
+`storage_file` 记录文件 ID、分类、上传管理员/前台用户、节点、相对路径、原始/存储文件名、字节数、MIME、宽高、SHA1、上传次数和最后上传时间，以及项目通用审计与软删除字段。路径包含上传时的 `path_prefix`，不保存服务器绝对路径。上传服务先读取节点快照并结束读取会话，再执行文件 I/O，最后以短事务复核节点并登记文件；网络阶段不持有默认配置锁或节点行锁。上传服务独立提交，成功响应前确认文件和记录已完成；失败在存储模块内补偿清理新对象，清理失败记录日志供人工核对。
 
-#### 业务描述
+去重范围为同一默认节点、同一身份和用户、同一分类、相同 SHA1 与大小、可用未删除记录，确认对象仍存在后复用。`dedup_key` 是节点、归属、分类、SHA1 与大小的指纹唯一键；同内容并发上传在登记阶段收敛到一条规范记录并清理重复对象，停用/删除时释放指纹。复用原子增加 `upload_count` 并更新 `last_upload_time`；上传次数不是业务引用数。响应新增 `file_id/file_size/mime_type/width/height`，保留 `file_path/file_name/origin_name/file_url`，URL 是公有地址而非临时签名。
 
-在已启用的存储源上列目录、上传、下载、打包目录、删除、复制或移动、重命名、建目录和生成分享链接。
+附件管理页面 `/storage/file` 查询文件记录，支持上传、筛选、详情、图片预览、复制文件 ID/公有链接、启停、逻辑删除；查询/编辑/删除权限为 `module_task:storage:file:query|update|delete`，接口前缀 `/task/storage/file`。停用和逻辑删除限制新引用，不撤销已有公有 URL；实际文件保留。
 
-#### 业务规则
+### 9.4 新业务附件引用
 
-- 操作必须指定可用存储源和合法路径。
-- 对象存储可以列桶。
-- 目录下载打包为 ZIP。
-- 连接失败或路径无效时拒绝操作，不部分提交。
+新业务表保存 `file_id`，多附件用业务关联表；已完成业务授权的服务在同一事务中调用 `AttachmentService.replace_references`，维护 `storage_file_reference`。业务类型、记录 ID、字段名由服务端指定，不暴露任意业务绑定接口。引用校验附件可用、归属和可选分类，前台用户归属与后台管理员审计分开；独立前台认证仍待前台用户模块接入。
 
-#### 数据模型
-
-不单独建表。通过 `source_id` 选择 `task_storage_node`，结合桶和路径读写目标文件或目录。
-
-#### API 接口
-
-前缀 `/task/storage/browse`。
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `list`、`buckets` | 文件列表、桶列表 |
-| POST | `upload`、`download`、`download_dir` | 上传、下载文件、下载目录 ZIP |
-| DELETE | `delete` | 删除 |
-| POST | `copy`、`share` | 复制或移动、分享链接 |
-| PUT | `rename`、`mkdir` | 重命名、创建目录 |
-
-### 9.3 传输任务
-
-#### 业务描述
-
-把本地上传的文件或远端路径传到一个或多个目标存储源，并推送进度。
-
-#### 业务规则
-
-- 任务类型：`parallel` 每个目标都读原始源；`chain` 后一步读前一步的目标。
-- 源类型：`remote` 指定源存储源和路径；`local` 先把文件收到服务端临时文件。
-- 至少一个目标，且目标源存在并启用。源与目标不能是同一位置。
-- 传输方式：`stream` 流式，`multipart` 分片。分片大小和并发可覆盖存储源默认值。留空则用存储源配置。
-- 状态：`pending`、`running`、`success`、`failed`、`canceled`。
-- 先落库任务和步骤，等请求事务提交后再启动后台传输。取消和删除受当前状态约束。
-- SSE 推送进度，不替代列表查询。
-
-#### 数据模型
-
-| 模型 | 关键字段与业务关联 |
-| --- | --- |
-| `task_storage_transfer` | `task_type` 决定并行或链式，`source_type` 区分本地或远端；`source_id` / `source_path` 定位源，`status` 驱动执行与取消，`progress`、`total_size` / `transferred_size` 记录进度，`error_msg` 保存失败原因 |
-| `task_storage_transfer_step` | `task_id` 关联任务，`step_order` 定义步骤顺序；`source_id` / `source_path` 与 `target_id` / `target_path` 定位两端，`transfer_mode`、`multipart_part_size` / `multipart_concurrency` 控制传输方式；`status`、`progress`、`error_msg` 记录步骤结果 |
-
-一个任务包含多个步骤；删除任务时级联删除步骤。存储源 ID 为业务引用；本地源的 `source_id` 可空，`source_path` 指向服务端临时文件。
-
-#### API 接口
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/task/storage/transfer/task` | 创建远端源任务 |
-| POST | `/task/storage/transfer/task/upload` | 上传本地文件并创建任务 |
-| GET | `task/page`、`task/{id}` | 分页与详情（含步骤） |
-| POST | `task/{id}/cancel` | 取消 |
-| DELETE | `task` | 删除 |
-| GET | `/task/storage/transfer/stream` | 进度 SSE |
-
-### 9.4 传输流程
-
-#### 业务描述
-
-把存储源画成可重复执行的连线。执行时按启用的连线批量创建传输任务。
-
-#### 业务规则
-
-- 类型 `parallel` 或 `chain`，默认并行。
-- `graph` 只存画布布局（位置、样式）。业务配置在节点表和连线表，回显时再组装，避免两份数据不一致。
-- 节点绑定一个存储源和默认路径。连线的目标路径取目标节点的默认路径，连线本身不再写路径。
-- 执行时只跑 `enabled = true` 的连线。没有启用连线、节点无效、源与目标相同或缺少路径时拒绝执行。
-- 请求里可以覆盖源路径。成功时返回新建的传输任务 ID 列表。
-- 流程状态 `0` 启用，`1` 停用。
-
-#### 数据模型
-
-| 模型 | 关键字段与业务关联 |
-| --- | --- |
-| `task_storage_workflow` | `task_type` 决定并行或链式，`status` 控制启停；`graph` 只存布局，业务配置以节点和连线为准 |
-| `task_storage_workflow_node` | `flow_id` 归属流程，`node_key` 标识节点；`source_id` 引用存储源，`source_path` 定义默认路径 |
-| `task_storage_workflow_edge` | `flow_id` 归属流程，`edge_key` 标识连线；`source_node_key` / `target_node_key` 连接同一流程内的节点，`enabled` 决定是否执行，`transfer_mode`、`multipart_part_size` / `multipart_concurrency` 定义传输配置 |
-
-流程、节点、连线及存储源之间的引用由业务层维护。连线目标路径取目标节点的 `source_path`，执行时按启用连线创建传输任务。
-
-#### API 接口
-
-前缀 `/task/storage/workflow`。分页、简表、详情、新增、修改、删除使用通用 CRUD。
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/task/storage/workflow/execute/{id}` | 按启用连线创建传输任务 |
+有业务引用的附件禁止停用或删除。旧头像、工单、系统参数等 URL 字段本期保留，富文本内嵌图片继续保存 URL；因此附件删除只逻辑删除，浏览器不提供物理删除能力。`FaUpload`、`FaFileUpload` 保留 URL 绑定并提供 `fileId` 绑定/上传成功事件供新业务使用。
 
 ---
 
@@ -669,7 +567,7 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 
 ### 11.1 业务描述
 
-提供健康检查、本机资源、在线会话、Redis 缓存和基础统计，以及受权限控制的公共上传下载。
+提供健康检查、本机资源、在线会话、Redis 缓存和基础统计，以及受权限控制的公共上传。
 
 ### 11.2 业务规则
 
@@ -678,7 +576,7 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 - 在线会话来自 Redis。可按名称、IP、登录地点过滤，可查看本人会话、强制下线指定会话或清空在线会话。
 - 缓存监控可查看 Redis 信息、缓存名、键和值，并清理指定缓存名、指定键或全部缓存。清理全部缓存需要独立权限。
 - 基础统计包含在线人数、用户数和近期登录等指标。
-- 公共上传返回文件名、映射路径和访问地址。下载按映射路径读取受控文件。上传、下载各自有权限标识。
+- 公共上传统一写入默认存储并登记附件，返回精简的文件 ID、元数据及公有链接；不附带附件管理的节点名称或引用统计。文件通过公有 URL 访问，存储浏览器另提供受权限控制的下载，旧 `/common/file/download` 路径下载接口已移除。
 
 ### 11.3 数据模型
 
@@ -694,7 +592,7 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 | DELETE | `/monitor/online/delete`、`clear` | 强制下线、清空会话 |
 | GET | `/monitor/cache/info`、`get/names`、`get/keys/{cache_name}`、`get/value/{cache_name}/{cache_key}` | 缓存查询 |
 | DELETE | `/monitor/cache/delete/name/{cache_name}`、`delete/key/{cache_key}`、`clear` | 缓存清理 |
-| POST / GET | `/common/file/upload`、`/common/file/download` | 上传、下载 |
+| POST | `/common/file/upload` | 默认节点上传并返回附件引用 |
 
 ---
 
@@ -734,11 +632,11 @@ Redis 的 `user_session` 以 `session_id` 关联后台账号 `user_id`，保存�
 系统参数 ──写入 Redis── 站点文案、演示模式、IP 黑白名单
 
 任务节点 ──调度── 执行日志
-存储源 ──被使用于── 文件浏览、传输步骤、流程节点
-传输流程 ──执行时创建── 传输任务 ──展开为── 传输步骤
+默认存储设置 ──选择── 存储节点 ──保存── 附件文件
+新业务表 ──引用文件 ID── 附件台账 ──记录── 业务附件引用
 
 代码生成配置 ──一对多── 字段配置 ──输出── 管理端代码
 示例插件 ──独立于── 上述业务，只验证插件加载
 ```
 
-RBAC 功能权限来自菜单和按钮节点的 `permission`；数据范围由角色 `data_scope` 与部门组织共同确定，岗位不参与授权。超管跳过两种检查。文件传输的进度以任务和步骤表为准，SSE 只做推送。
+RBAC 功能权限来自菜单和按钮节点的 `permission`；数据范围由角色 `data_scope` 与部门组织共同确定，岗位不参与授权。超管跳过两种检查。附件上传次数与业务引用数分开，公有读取不代表有权绑定附件。

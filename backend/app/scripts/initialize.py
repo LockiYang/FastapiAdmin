@@ -202,6 +202,14 @@ class InitializeData:
                 logger.error(f"❌️ 初始化 {table_name} 表数据失败")
                 raise
 
+        if settings.module_enabled("storage"):
+            from app.modules.storage.node.model import StorageNodeModel, StorageSettingModel
+            if await db.get(StorageSettingModel, 1) is None:
+                # 仅全新设置选内置本地节点；已有设置不覆盖。
+                node_id = await db.scalar(select(StorageNodeModel.id).where(StorageNodeModel.name == "本地上传目录", StorageNodeModel.is_deleted.is_(False)))
+                db.add(StorageSettingModel(id=1, default_node_id=node_id))
+                await db.flush()
+
         if skipped:
             logger.info(f"⏭️  {len(skipped)} 张表已有数据，跳过初始化：{', '.join(skipped)}")
 

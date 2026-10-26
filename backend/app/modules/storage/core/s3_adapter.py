@@ -76,17 +76,16 @@ class S3StorageAdapter(BaseStorageAdapter):
             logger.warning(f"S3 连接测试失败: {e}")
             return False
 
-    def _sync_upload(self, local_path: str, remote_path: str) -> str:
+    def _sync_upload(self, local_path: str, remote_path: str, content_type: str | None = None) -> str:
         try:
             # 按端点分片参数配置：超过分片大小阈值即分片并发上传（并发受内存预算护栏约束）；
-            # 流式传输（stream）时阈值为超大值，等效单次上传
-            part_size, concurrency, _ = self._multipart_settings()
+            part_size, concurrency = self._multipart_settings()
             transfer_config = TransferConfig(
                 multipart_threshold=part_size,
                 multipart_chunksize=part_size,
                 max_concurrency=concurrency,
             )
-            self.client.upload_file(local_path, self._require_bucket(), remote_path, Config=transfer_config)
+            self.client.upload_file(local_path, self._require_bucket(), remote_path, Config=transfer_config, ExtraArgs={"ContentType": content_type} if content_type else {})
         except Exception:
             logger.exception('S3 上传失败')
             raise
@@ -219,24 +218,12 @@ class S3StorageAdapter(BaseStorageAdapter):
             logger.exception('S3 桶列表失败')
             raise
 
-    def _sync_get_url(self, remote_path: str, expire: int) -> str:
-        try:
-            return self.client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": self._require_bucket(), "Key": remote_path},
-                ExpiresIn=expire,
-            )
-        except Exception:
-            logger.exception('S3 生成预签名 URL 失败')
-            raise
-
     def _sync_close(self) -> None:
         """关闭 boto3 客户端连接。"""
         close = getattr(self.client, "close", None)
         if callable(close):
             close()
 
-    # ── 目录操作（对象存储以 key/ 占位对象模拟目录）──────────────────
 
     def _list_all_keys(self, prefix: str) -> list[str]:
         """分页列举前缀下的全部对象 key。"""
@@ -256,43 +243,6 @@ class S3StorageAdapter(BaseStorageAdapter):
         except Exception:
             return False
 
-    def _sync_mkdir(self, remote_dir: str) -> None:
-        try:
-            self.client.put_object(Bucket=self._require_bucket(), Key=remote_dir.rstrip("/") + "/", Body=b"")
-        except Exception:
-            logger.exception('S3 创建目录失败')
-            raise
-
-    def _sync_rmdir(self, remote_dir: str) -> None:
-        try:
-            self.client.delete_object(Bucket=self._require_bucket(), Key=remote_dir.rstrip("/") + "/")
-        except Exception:
-            logger.exception('S3 删除目录失败')
-            raise
-
-    def _sync_copy(self, src: str, dst: str) -> None:
-        """复制：目录走基类递归实现；文件用服务端 copy_object。"""
-        try:
-            if self._is_dir(src):
-                self._sync_copy_dir(src, dst)
-                return
-            self.client.copy_object(
-                Bucket=self._require_bucket(),
-                CopySource={"Bucket": self._require_bucket(), "Key": src},
-                Key=dst,
-            )
-        except Exception:
-            logger.exception('S3 复制失败')
-            raise
-
-    def _sync_rename(self, src: str, dst: str) -> None:
-        """重命名/移动：目录先复制后删除；文件 copy_object 后删源。"""
-        if self._is_dir(src):
-            self._sync_move_dir(src, dst)
-        else:
-            self._sync_copy(src, dst)
-            self._sync_delete(src)
-
     def _sync_list_recursive(self, prefix: str) -> list[StorageObject]:
         try:
             keys = self._list_all_keys(prefix)
@@ -300,19 +250,3 @@ class S3StorageAdapter(BaseStorageAdapter):
             logger.exception('S3 递归列表失败')
             raise
         return self._entries_from_keys(keys)
-
-    def _sync_delete_dir(self, remote_dir: str) -> None:
-        """递归删除：一次列举全部对象并分批批量删除（含占位目录对象）。"""
-        try:
-            keys = self._list_all_keys(remote_dir)
-            marker = remote_dir.rstrip("/") + "/"
-            if marker not in keys:
-                keys.append(marker)
-            for i in range(0, len(keys), 1000):
-                self.client.delete_objects(
-                    Bucket=self._require_bucket(),
-                    Delete={"Objects": [{"Key": k} for k in keys[i : i + 1000]], "Quiet": True},
-                )
-        except Exception:
-            logger.exception('S3 递归删除失败')
-            raise

@@ -6,16 +6,16 @@
 
 ## 1. 总览
 
-项目在 `backend/app` 中显式定义了 **29 张 ORM 表**，包括实体表和关联表；不含 APScheduler、Alembic 等框架表及历史待清理表。
+项目在 `backend/app` 中显式定义了 **27 张 ORM 表**，包括实体表和关联表；不含 APScheduler、Alembic 等框架表及历史待清理表。
 
 | 代码域 | 表数 | 对应 PRD |
 | --- | --- | --- |
 | `system` | 18 | §3 认证、§4 RBAC、§5 组织、§6 配置与字典、§7 内容与其他 |
 | `task` | 2 | §8 定时任务 |
-| `storage` | 6 | §9 存储与传输 |
+| `storage` | 4 | §9 文件存储管理 |
 | `generator` | 2 | §10 代码生成 |
 | `plugin/module_example` | 1 | §12 示例插件 |
-| **合计** | **29** | 同一张表可被多个功能复用，不按页面重复计数 |
+| **合计** | **27** | 同一张表可被多个功能复用，不按页面重复计数 |
 
 `task_storage_*` 虽沿用 `task_` 表名前缀，代码已归属独立 `storage` 模块。`task_cornjob_node`、`task_corn_job` 是当前真实表名，保留其现有拼写。
 
@@ -70,20 +70,16 @@
 
 节点表定义“执行什么、何时执行”，不是服务器节点；执行日志表记录“某次执行结果”。任务表是唯一配置来源；定时任务采用单机单进程部署（一个后端实例、`WORKERS=1`），运行计划只保存在内存，启动时重新加载。
 
-### 2.6 存储与传输
+### 2.6 文件存储管理
 
 | 表名 | PRD 模块 | 承载功能与关键关联 | 模型源码 |
 | --- | --- | --- | --- |
-| `task_storage_node` | §9.1 存储源；§9.2 文件浏览 | 存储协议、连接配置、加密凭据、默认标记与启停；供浏览、传输、流程复用 | [storage/node/model.py](../backend/app/modules/storage/node/model.py) |
-| `task_storage_transfer` | §9.3 传输任务 | 一次传输的源、任务类型、执行状态、进度与结果 | [transfer/model.py](../backend/app/modules/storage/transfer/model.py) |
-| `task_storage_transfer_step` | §9.3 传输任务 | `task_id` 外键关联传输任务；步骤序号、源目标路径、传输方式和步骤进度；源目标存储 ID 为业务引用 | [transfer/model.py](../backend/app/modules/storage/transfer/model.py) |
-| `task_storage_workflow` | §9.4 传输流程 | 可复用流程定义与启停，`graph` 仅保存画布布局 | [workflow/model.py](../backend/app/modules/storage/workflow/model.py) |
-| `task_storage_workflow_node` | §9.4 传输流程 | `flow_id` 归属流程，`node_key` 标识节点，`source_id` 绑定存储源，`source_path` 为默认路径 | [workflow/model.py](../backend/app/modules/storage/workflow/model.py) |
-| `task_storage_workflow_edge` | §9.4 传输流程 | `flow_id` 归属流程；源、目标 `node_key` 形成连线，保存是否执行和传输参数 | [workflow/model.py](../backend/app/modules/storage/workflow/model.py) |
+| `task_storage_node` | §9.1 存储节点 | 存储位置、协议、加密凭据、公有访问根地址、启停 | [node/model.py](../backend/app/modules/storage/node/model.py) |
+| `storage_setting` | §9.1 默认设置 | 单例 `id=1`，`default_node_id` 外键关联唯一默认节点 | [node/model.py](../backend/app/modules/storage/node/model.py) |
+| `storage_file` | §9.3 公有附件 | 上传人、节点、对象路径、元数据、SHA1、上传次数、最后上传时间、可空的唯一 `dedup_key`；关联节点和后台上传管理员 | [file/model.py](../backend/app/modules/storage/file/model.py) |
+| `storage_file_reference` | §9.4 业务引用 | 复合主键为文件 ID、业务类型、业务 ID 和字段；由已完成授权的业务服务在自身事务维护 | [file/model.py](../backend/app/modules/storage/file/model.py) |
 
-流程执行读取节点和连线，再创建 `task_storage_transfer` 与步骤。当前每条启用连线分别创建任务，传输任务没有独立的 `workflow_id` 外键；不能只依靠表关系将所有任务反查为某次流程执行，也不能把连线直接视为已实现完整依赖调度。
-
-文件浏览的上传、下载、删除等操作直接访问存储源，**没有逐文件的统一附件记录表**。传输任务和步骤记录的是执行过程，不替代文件元数据与业务引用记录。
+文件浏览查询实际存储；附件管理查询文件记录。现有业务 URL 字段保留，新业务保存文件 ID 并同步维护引用。逻辑删除保留实际对象和原公有链接。
 
 ### 2.7 代码生成与示例插件
 
@@ -105,9 +101,7 @@
 | 权限节点 → 父节点 | `sys_menu.parent_id` 外键 | 菜单树与启停、删除联动 |
 | 字典条目 → 类型 | `sys_dict_data.dict_type_id` 外键 | 一对多；`dict_type` 同步保存类型编码 |
 | 工单 → 处理人；评论 → 工单 | `assigned_id`、`ticket_id` 外键 | 指派与讨论，评论依赖工单 |
-| 传输步骤 → 任务 | `task_storage_transfer_step.task_id` 外键 | 一次任务的多个执行步骤 |
-| 传输任务或步骤 → 存储源 | `source_id`、`target_id` 普通字段，业务层校验 | 源目标定位，不自动获得外键级联保护 |
-| 流程 → 节点、连线；节点 → 存储源 | `flow_id`、`node_key`、`source_id` 等业务引用 | 由 Service 维护引用有效性 |
+| 默认设置 → 节点；附件 → 节点；业务引用 → 附件 | `default_node_id`、`storage_node_id`、`file_id` 外键 | 默认配置、对象定位与引用保护 |
 | 生成字段 → 表配置 | `gen_table_column.table_id` 外键 | 一对多生成配置 |
 
 `ModelMixin` 提供主键、UUID、软删除及时间字段，不单独建表。叠加 `UserMixin` 的实体还带 `created_id`、`updated_id`、`deleted_id`，外键指向 `sys_user.id`，用于后台操作人审计和部分数据范围查询。四张角色/岗位关联表直接继承 `MappedBase`，使用联合主键。
@@ -197,11 +191,11 @@ ALTER TABLE task_corn_job ADD COLUMN duration_ms FLOAT NULL;
 | §3 认证 | 复用 `sys_user` 与 `sys_login_log`，Redis 存令牌、验证码和 `user_session`，不另建登录账号表 |
 | §4.3 菜单与按钮权限 | 共用 `sys_menu`，不是菜单表和按钮表各一张 |
 | §6 字典和参数读取 | 关系库保存定义，Redis 缓存供业务读取；缓存不是新增关系表 |
-| §9.2 文件浏览 | 复用 `task_storage_node` 连接存储源，文件和目录实际保存在本地磁盘或远端存储 |
+| §9.2 文件浏览 | 复用 `task_storage_node` 只读浏览实际磁盘/远端内容，上传进入统一附件服务 |
 | §11 在线用户 | Redis `user_session`，强制下线撤销会话，没有独立在线用户表 |
 | §11 健康检查、服务器资源、缓存监控 | 实时探测数据库、Redis、操作系统等，当前没有独立监控历史表 |
-| §11 公共上传下载 | 文件系统及业务字段引用；当前没有统一附件表，上传本身不会自动插入逐文件记录 |
-| 公告和传输进度 SSE | 事件推送与 Redis Pub/Sub；公告、传输结果仍以各自业务表为准，不另建 SSE 事件表 |
+| §11 公共上传下载 | 默认节点实际对象与 `storage_file` 台账；旧业务 URL 保留，新业务通过文件 ID 引用 |
+| 公告 SSE | 事件推送与 Redis Pub/Sub；公告仍以业务表为准，不另建 SSE 事件表 |
 
 ## 6. 初始化、模块开关与种子数据
 
@@ -219,3 +213,17 @@ ALTER TABLE task_corn_job ADD COLUMN duration_ms FLOAT NULL;
 ## 7. 维护说明
 
 新增、删除或重命名 ORM 表，改变模块归属、关键关联或框架建表逻辑时，同步更新本文及 PRD 对应章节。本文记录当前实现映射；新文件表、前台用户表等尚未实现的设计应标为需求或方案，不混入现有表清单。
+
+### 6. 文件存储迁移与历史清理
+
+- 迁移链保留开发服务自动生成的 `68a3f2e39fc6`（新增附件/默认配置/引用表及节点公有地址、移除 `is_default`），补充迁移 `c8a4e710b632` 初始化默认指针、公有本地地址与附件菜单，旧流程/传输菜单逻辑隐藏，新权限由管理员分配。
+- 五张历史表 `task_storage_transfer`、`task_storage_transfer_step`、`task_storage_workflow`、`task_storage_workflow_node`、`task_storage_workflow_edge` 不再属于 ORM，保留数据库数据，未自动删除。
+- 开发库经授权已迁移并核对版本 `c8a4e710b632`、默认节点 1、公有地址 `/static/upload` 与附件菜单；其他部署仍需应用迁移。MySQL 不支持上传人互斥 CHECK 与 SET NULL 外键组合，互斥由上传服务保证。
+- 不导入、迁移或清理旧磁盘文件；旧业务 URL 字段继续可用。独立前台用户表尚未实现，`storage_file.user_id` 暂不设置外键。
+
+### 7. 上传链路收敛与指纹去重
+
+- `923815682316` 增加可空唯一 `dedup_key`；`f621b9a0d745` 为历史可用附件回填指纹，同内容多条记录只选一条规范记录，不合并文件 ID；`211b105f74ea` 删除已被替代的 `ix_storage_file_dedup` 复合索引。无附件或实际文件删除。
+- 指纹涵盖节点、管理员/前台用户、分类、SHA1 和大小。停用、逻辑删除释放指纹；并发上传由唯一约束收敛，重复对象补偿清理。
+- 默认节点只通过专用操作修改，节点编辑不接收默认标记；存储定位变化在节点管理和上传登记阶段使用同一规则检查。
+- 开发库经已授权的 upgrade 与只读核对，版本为 `211b105f74ea`，唯一指纹约束存在，旧复合索引已移除，默认节点保持 1；其他部署仍需迁移。

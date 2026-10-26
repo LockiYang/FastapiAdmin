@@ -10,37 +10,12 @@ const baseURL = import.meta.env.VITE_APP_BASE_API;
 let downloadLoadingInstance: any;
 
 interface DownloadUtil {
-  name(name: string, isDelete?: boolean): void;
   zip(url: string, name: string): void;
   saveAs(text: Blob | string, name: string, opts?: any): void;
   printErrMsg(data: Blob): Promise<void>;
 }
 
 const download: DownloadUtil = {
-  async name(name: string, isDelete: boolean = true) {
-    const url = baseURL + "/common/file/download";
-    try {
-      const res = await axios.post<Blob>(
-        url,
-        { file_path: name, delete: isDelete },
-        {
-          responseType: "blob",
-          headers: { Authorization: `Bearer ${Auth.getAccessToken()}` },
-        }
-      );
-      const isBlob = blobValidate(res.data);
-      if (isBlob) {
-        const blob = new Blob([res.data]);
-        download.saveAs(blob, decodeURIComponent(res.headers["download-filename"]));
-      } else {
-        await download.printErrMsg(res.data);
-      }
-    } catch (error) {
-      console.error("[Download] 文件下载失败:", error);
-      ElMessage.error("下载文件失败，请稍后重试");
-    }
-  },
-
   async zip(url: string, name: string) {
     const fullUrl = baseURL + url;
     downloadLoadingInstance = ElLoading.service({

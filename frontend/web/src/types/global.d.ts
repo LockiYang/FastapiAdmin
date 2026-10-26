@@ -113,6 +113,11 @@ declare global {
    * 上传文件路径
    */
   interface UploadFilePath {
+    file_id: number;
+    file_size: number;
+    mime_type: string;
+    width: number;
+    height: number;
     file_path: string;
     file_name: string;
     origin_name: string;
