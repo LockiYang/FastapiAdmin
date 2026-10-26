@@ -1,6 +1,6 @@
 # SQLAlchemy、Alembic、Pydantic、APScheduler 快速入门
 
-本文只覆盖在本项目开始开发时需要掌握的知识。项目当前使用 **SQLAlchemy 2.0、Alembic 1.18、Pydantic 2、APScheduler 3**；下面的写法以这些版本为准。FastAPI 路由和依赖注入先读 [FastAPI 入门](tutorial.md)，整体目录关系见 [技术架构](arch.md)。
+本文只覆盖在本项目开始开发时需要掌握的知识。项目当前使用 **SQLAlchemy 2.0、Alembic 1.18、Pydantic 2、APScheduler 3**；下面的写法以这些版本为准。FastAPI 路由和依赖注入先读 [FastAPI 入门](tutorial.md)，整体目录关系见 [技术架构](../../docs/arch.md)。
 
 | 工具 | 解决什么问题 | 本项目主要位置 |
 | --- | --- | --- |

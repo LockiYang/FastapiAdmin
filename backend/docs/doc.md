@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 操作手册 | 根 `SKILL.md` | 开工前对齐目录、命令、分层约定和已踩过的坑 |
 | 组队纪律 | `dsh/TEAM-PLAYBOOK.md` | 决定单会话还是组队，以及审计波 / 交付波怎么分工、怎么验收 |
-| 规格与知识 | 根 `REQUIREMENTS.md`；`backend/docs/prd.md`、`arch.md`、`fastapi.md`、`basics.md`；`backend/README.md` | 告诉模型「要做什么」和「代码该长什么样」 |
+| 规格与知识 | 根 `REQUIREMENTS.md`；`docs/prd.md`、`arch.md`、`fastapi.md`、`basics.md`；`backend/README.md` | 告诉模型「要做什么」和「代码该长什么样」 |
 | 证据与约束 | `dsh/AUDIT-REPORT.md`、`DEPLOYMENT.md`、`README.md`、`CONTRIBUTING.md`、`CHANGELOG.md`；`dsh/backend/audit-*.md` | 记录已核实的问题、不可逆动作和对外说明，避免下一轮编码把旧结论当事实或擅自上线 |
 
 人读的总览和 AI 读的操作手册是分开的。`README.md` 面向克隆后五分钟跑起来；`SKILL.md` 面向写代码前的约定。两者可以同时被模型读到，但改业务代码时以 `SKILL.md` 和 `backend/docs/` 为准。
@@ -72,7 +72,7 @@ Playbook 第 7 节的审计波模板直接对应下面这些报告文件名，�
 
 `SKILL.md` 把它列为做大功能前要读的需求。审计波里的产品角色以它为基线，对照三端代码，产出 `dsh/backend/audit-requirements.md`。
 
-它描述的是目标产品，不是当前仓库的行为。`dsh/backend/audit-requirements.md` 与 `dsh/AUDIT-REPORT.md` 已核实：三端代码里没有 `tenant` 实现，该文件来自一次纯文档提交。AI Coding 若把它当成「现在已经这样工作」，会按不存在的租户模型改代码。当前已实现的后端行为以 `backend/docs/prd.md` 为准；`REQUIREMENTS.md` 只作为差距和未来范围。
+它描述的是目标产品，不是当前仓库的行为。`dsh/backend/audit-requirements.md` 与 `dsh/AUDIT-REPORT.md` 已核实：三端代码里没有 `tenant` 实现，该文件来自一次纯文档提交。AI Coding 若把它当成「现在已经这样工作」，会按不存在的租户模型改代码。当前已实现的后端行为以 `docs/prd.md` 为准；`REQUIREMENTS.md` 只作为差距和未来范围。
 
 ### 1.4 `dsh/AUDIT-REPORT.md` — 审计波的队长总报告
 
@@ -99,7 +99,7 @@ Playbook 第 7 节的审计波模板直接对应下面这些报告文件名，�
 
 AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 行的 `REQUIREMENTS.md`。它按业务域写规则和路径：系统、任务与存储、AI 聊天与代码生成、监控，并给出表索引。
 
-### 2.2 `docs/arch.md` — 后端技术架构
+### 2.2 `docs/arch.md` — 项目架构与开发指南
 
 说明单体 FastAPI 如何分层，以及一次请求怎么走完：
 
@@ -147,7 +147,7 @@ AI 改后端接口、权限或数据范围时读这份，而不是通读 3000 �
 一次小改动的阅读顺序：
 
 1. `SKILL.md`：确认改的是哪个端、文件该放哪、权限标识和验证命令是什么。
-2. 只动后端时补读 `backend/docs/arch.md`（放哪一层）和 `backend/docs/prd.md`（这个接口现在的规则）。
+2. 只动后端时补读 `docs/arch.md`（放哪一层）和 `docs/prd.md`（这个接口现在的规则）。
 3. 要写路由、模型、迁移或定时任务时，再读 `fastapi.md` / `basics.md`，避免用过时的 FastAPI 或 SQLAlchemy 1.x 写法。
 4. 改完按 `SKILL.md` 与 playbook 第 4 节的命令验证。Playbook 给出的后端命令是 `UV_CACHE_DIR=/tmp/uv-cache-test uv run --no-sync pytest -q` 和同样前缀的 `ruff check`，用于沙箱写不了默认 uv 缓存的环境。
 
@@ -184,7 +184,7 @@ dsh/AUDIT-REPORT.md
 
 ### 3.4 文档之间不要混用的三处
 
-1. **两份需求**：`REQUIREMENTS.md` 是 SaaS 多租户目标规格；`backend/docs/prd.md` 是当前后端实现。实现任务以 `prd.md` 和源码为准。若任务是补齐多租户，才以 `REQUIREMENTS.md` 为范围，并先确认产品要立项。
+1. **两份需求**：`REQUIREMENTS.md` 是 SaaS 多租户目标规格；`docs/prd.md` 是当前后端实现。实现任务以 `prd.md` 和源码为准。若任务是补齐多租户，才以 `REQUIREMENTS.md` 为范围，并先确认产品要立项。
 2. **两套验证命令**：`SKILL.md` 写日常命令（`uv run pytest`、`pnpm ts:check`）。`dsh/TEAM-PLAYBOOK.md` 写团队在受限环境下能跑通的命令（`UV_CACHE_DIR` + `--no-sync`，以及前端 `pnpm run type-check`，且 Web 类型检查前要先 `pnpm run build:prod`，因为 `src/types/*.d.ts` 不入库）。审计报告记录的是当时那一次的退出码。
 3. **教学片段与仓库代码**：`fastapi.md`、`basics.md` 里的短示例用于对齐 API 心智；粘贴进仓库前要改成项目的 `SuccessResponse`、`AuthPermission`、`CRUDBase` 和 `uv run main.py` 入口，这些在 `SKILL.md` 与 `arch.md`。
 
@@ -194,7 +194,7 @@ dsh/AUDIT-REPORT.md
 
 | 你要做的事 | 先读 | 再读 |
 | --- | --- | --- |
-| 改一个明确的小功能 | `SKILL.md` | `backend/docs/prd.md`、`arch.md` |
+| 改一个明确的小功能 | `SKILL.md` | `docs/prd.md`、`arch.md` |
 | 新增后端模块或改表 | `SKILL.md` §3、§5 | `basics.md`、`backend/README.md` |
 | 只想搞清 FastAPI / ORM 在本项目里怎么写 | `fastapi.md` | `basics.md`、`arch.md` |
 | 判断该不该组队 | `dsh/TEAM-PLAYBOOK.md` §1–§2 | 审计波模板 §7 |
@@ -238,7 +238,7 @@ dsh/AUDIT-REPORT.md
 | --- | --- | --- |
 | [SKILL.md](../../SKILL.md) | 工程地图、分层、代码约定、验证命令和常见问题。 | 单个 AI 和多个 AI 都可读取；没有创建团队或分配任务的实现。 |
 | [REQUIREMENTS.md](../../REQUIREMENTS.md) | 目标产品规格；需求成员的审计基线。 | 作为任务输入，不能代替当前源码事实。 |
-| [backend/docs/prd.md](prd.md)、[arch.md](arch.md)、[fastapi.md](fastapi.md)、[basics.md](basics.md) | 后端行为、架构和开发知识。 | 帮助成员理解任务；不是团队插件配置。 |
+| [docs/prd.md](../../docs/prd.md)、[arch.md](../../docs/arch.md)、[fastapi.md](fastapi.md)、[basics.md](basics.md) | 后端行为、架构和开发知识。 | 帮助成员理解任务；不是团队插件配置。 |
 | [DEPLOYMENT.md](../../DEPLOYMENT.md)、[CONTRIBUTING.md](../../CONTRIBUTING.md) | 部署和贡献流程。 | 提供交付约束，不执行成员协调。 |
 | `frontend/app/.agents/skills/` | `create-wot-ui-theme`、`wot-ui-v2`、`starter-cleaner`、`wot-ui-unocss-preset-guide`、`wot-ui-cli` 五项技能及其支持文件。 | 面向 AI 的移动端开发技能；目录名含 `.agents` 不代表会启动多个智能体。 |
 
@@ -251,7 +251,7 @@ README、CHANGELOG 等也可被成员作为背景读取，但没有因此被列�
 | [backend/app/utils/ai_factory.py](../app/utils/ai_factory.py) | 第 3–5、56–80 行 | `AgnoFactory.create_agent()` 创建 Agno `Agent` 和 `Team`，供产品的 AI 聊天使用。当前 `members=[fastapiadmin_agent]` 只有一个成员，且该成员 `tools=[]`；不能据此认定已实现多个编码智能体协作。 |
 | [backend/app/modules/ai/chat/service.py](../app/modules/ai/chat/service.py) | 第 9–10、171、222–229 行 | 使用 Team 会话和运行结果，调用工厂创建聊天实例并运行模型。 |
 | [backend/app/modules/ai/chat/crud.py](../app/modules/ai/chat/crud.py) | 第 11、21、163–170 行 | Agno `TeamSession` 的数据库访问、创建和会话标识管理。 |
-| [backend/docs/arch.md](arch.md)、[prd.md](prd.md) | `arch.md` 第 50 行；`prd.md` §5.1 | 介绍产品的 AI 聊天、模型配置与会话存储。 |
+| [docs/arch.md](../../docs/arch.md)、[prd.md](../../docs/prd.md) | `arch.md` §7；`prd.md` §10 | 介绍产品的 AI 聊天、模型配置与会话存储。 |
 
 这组代码属于应用功能，不负责 DSH 的成员创建、任务板、文件写入范围或代码复核门禁。前端 AI 聊天页面和接口同样属于产品功能。
 

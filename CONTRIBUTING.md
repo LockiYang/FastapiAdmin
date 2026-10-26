@@ -4,7 +4,7 @@
 
 ## 快速链接
 
-- 📖 **项目文档**: [架构说明](backend/docs/arch.md) · [业务规则](backend/docs/prd.md)
+- 📖 **项目文档**: [架构说明](docs/arch.md) · [业务规则](docs/prd.md)
 - 🐛 **反馈 Bug**: [GitHub Issues](https://github.com/fastapiadmin/FastapiAdmin/issues) | [Gitee Issues](https://gitee.com/fastapiadmin/FastapiAdmin/issues)
 - 💡 **功能建议**: 先提 Issue 讨论，再动手写代码
 - 💬 **社区交流**: 扫码加入微信群（二维码见 [README](./README.md)）

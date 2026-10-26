@@ -114,7 +114,7 @@ ENABLED_MODULES = ["generator", "task", "storage", "ai"]
 
 ## 📖 文档地址
 
-- 📖 [架构说明](backend/docs/arch.md) · [业务规则](backend/docs/prd.md)
+- 📖 [架构说明](docs/arch.md) · [业务规则](docs/prd.md)
 - 📁 子工程 README：[backend](backend/README.md) · [web](frontend/web/README.md) · [移动端](frontend/app/README.md) · [Docker](docker/README.md)
 
 ## 🙏 鸣谢

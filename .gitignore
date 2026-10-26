@@ -65,8 +65,6 @@ frontend/web/.env.production
 !frontend/app/.gitkeep
 
 .plan
-CLAUDE.md
-AGENTS.md
 .codebuddy
 .agent
 .workbuddy
