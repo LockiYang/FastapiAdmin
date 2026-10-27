@@ -26,7 +26,7 @@ git clone https://gitee.com/fastapiadmin/FastapiAdmin.git
 cp backend/env/.env.example backend/env/.env.dev
 cp frontend/web/.env.development.example frontend/web/.env.development
 
-# 3. 启动后端（首次自动建表 + 初始化数据）
+# 3. 启动后端（首次自动建表 + 初始化数据），需要先建库
 cd backend && uv sync && uv run main.py run --env=dev
 uv sync --extra mysql && uv run --extra mysql main.py run --env=dev
 
